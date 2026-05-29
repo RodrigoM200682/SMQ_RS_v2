@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMQ_RS – Sistema de Monitoramento de Qualidade RS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2333;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #e8ecf4;
+    --text2: #8892a8;
+    --text3: #505a72;
+    --accent: #3b82f6;
+    --accent2: #60a5fa;
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --purple: #a78bfa;
+    --teal: #14b8a6;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+  /* HEADER */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  .header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.03em; }
+  .header-sub { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .upload-btn { display: flex; align-items: center; gap: 8px; background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-family: var(--sans); font-weight: 500; cursor: pointer; transition: opacity .2s; }
+  .upload-btn:hover { opacity: .85; }
+  #file-input { display: none; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 2px; padding: 16px 24px 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab { padding: 8px 18px; font-size: 12px; font-weight: 500; color: var(--text2); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; letter-spacing: 0.04em; text-transform: uppercase; }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* PANELS */
+  .panel { display: none; padding: 20px 24px; }
+  .panel.active { display: block; }
+
+  /* FILTER BAR */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .filter-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
+  select, input[type=month] { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: 5px; padding: 6px 10px; font-size: 12px; font-family: var(--sans); outline: none; }
+  select:focus, input[type=month]:focus { border-color: var(--accent); }
+  select[multiple] { padding: 4px 2px; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+  select[multiple] option { padding: 4px 8px; border-radius: 3px; }
+  select[multiple] option:checked { background: #1d4ed8; color: #fff; }
+  .todos-btn { font-size:10px; padding:2px 7px; border-radius:4px; border:0.5px solid var(--border2); background:var(--surface2); color:var(--accent2); cursor:pointer; font-family:var(--sans); margin-bottom:3px; display:block; width:100%; text-align:left; }
+  .todos-btn:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+  option { background: var(--surface2); }
+  .apply-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--accent2); border-radius: 5px; padding: 7px 14px; font-size: 12px; font-family: var(--sans); font-weight: 500; cursor: pointer; transition: all .2s; }
+  .apply-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .kpi-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 6px; }
+  .kpi-value { font-size: 26px; font-weight: 600; font-family: var(--mono); }
+  .kpi-value.blue { color: var(--accent2); }
+  .kpi-value.red { color: var(--red); }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.amber { color: var(--amber); }
+  .kpi-value.purple { color: var(--purple); }
+  .kpi-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  /* CHARTS GRID */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .chart-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); margin-bottom: 14px; font-family: var(--mono); }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap-tall { position: relative; height: 260px; }
+  .full-width { grid-column: 1 / -1; }
+
+  /* TABLE */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .table-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .table-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); font-family: var(--mono); }
+  .table-count { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); font-family: var(--mono); border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 500; font-family: var(--mono); }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+  .badge-amber { background: rgba(245,158,11,.15); color: var(--amber); }
+  .badge-blue { background: rgba(59,130,246,.15); color: var(--accent2); }
+  .badge-gray { background: rgba(255,255,255,.08); color: var(--text2); }
+
+  /* COMPARISON PANEL */
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .comp-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .comp-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .delta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  .delta-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .delta-table td:first-child { color: var(--text2); font-size: 11px; }
+  .delta-table td:nth-child(2), .delta-table td:nth-child(3) { font-family: var(--mono); text-align: right; }
+  .delta-positive { color: var(--red); }
+  .delta-negative { color: var(--green); }
+  .delta-zero { color: var(--text3); }
+
+  /* RESPONSIBLE PANEL */
+  .resp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ATRASOS */
+  .atraso-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+  .atraso-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; color:#ef4444; font-family:var(--mono); }
+  .atraso-badge.amber { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.3); color:var(--amber); }
+  .atraso-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .atraso-table th { padding:7px 12px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); font-family:var(--mono); border-bottom:1px solid var(--border); background:var(--surface2); white-space:nowrap; }
+  .atraso-table td { padding:9px 12px; border-bottom:1px solid var(--border); color:var(--text); white-space:nowrap; }
+  .atraso-table tr:last-child td { border-bottom:none; }
+  .atraso-table tr:hover td { background:rgba(239,68,68,.04); }
+  .dias-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; font-family:var(--mono); }
+  .dias-critico { background:rgba(239,68,68,.2); color:#ef4444; }
+  .dias-alto    { background:rgba(245,158,11,.2); color:var(--amber); }
+  .dias-medio   { background:rgba(168,85,247,.2); color:var(--purple); }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+
+
+  /* TOGGLE FILTRO */
+  #global-filter-bar.recolhido > div:first-child { display:none !important; }
+  #global-filter-bar.recolhido #comp-months { margin-top:0; padding-top:0; border-top:none; }
+  #global-filter-bar { transition: all .2s; }
+
+  /* PDF / PRINT */
+  @media print {
+    .header, .tabs, #global-filter-bar, .upload-btn, #btn-toggle-filtro,
+    .todos-btn, .apply-btn, #btn-pdf { display: none !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .panel { display: block !important; padding: 0 !important; }
+    .chart-card, .kpi-card, .table-card { border: 1px solid #ddd !important; background: #fff !important; break-inside: avoid; }
+    .kpi-value { color: #000 !important; }
+    .chart-title, .kpi-label, .kpi-sub, td, th { color: #333 !important; }
+    #pdf-header { display: block !important; }
+  }
+  #pdf-header { display:none; font-family: var(--sans); padding: 0 0 16px; border-bottom: 2px solid #ddd; margin-bottom: 16px; }
+
+  @media (max-width: 768px) {
+    .charts-grid, .comp-grid, .resp-grid { grid-template-columns: 1fr; }
+    .panel { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-dot"></div>
+    <div>
+      <h1>SMQ_RS</h1>
+      <div class="header-sub">Sistema de Monitoramento de Qualidade · Reclamações de Clientes</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <div style="display:flex;flex-direction:column;gap:2px;text-align:right;">
+      <span id="data-info" style="font-size:11px;color:var(--text3);font-family:var(--mono);">341 registros carregados</span>
+      <span id="data-update" style="font-size:10px;color:var(--text3);font-family:var(--mono);">Base original · jan/2025–mai/2026</span>
+    </div>
+    <button class="upload-btn" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);" id="btn-toggle-filtro" onclick="toggleFiltro()">
+      ⊟ Recolher Filtro
+    </button>
+    <button class="upload-btn" style="background:#16a34a;" onclick="baixarPDF()">
+      ↓ Baixar Relatório PDF
+    </button>
+    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+      ↑ Atualizar Planilha
+    </button>
+    <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleUpload(event)">
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab" onclick="switchTab('visao')">Visão Geral</button>
+  <button class="tab active" onclick="switchTab('periodo')">Por Período</button>
+  <button class="tab" onclick="switchTab('comparacao')">Comparação</button>
+  <button class="tab" onclick="switchTab('responsavel')">Por Responsável</button>
+  <button class="tab" onclick="switchTab('registros')">Registros</button>
+</div>
+
+<!-- BARRA DE FILTROS GLOBAL -->
+<div id="global-filter-bar" style="background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;">
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;">
+    <div class="filter-group">
+      <div class="filter-label">De</div>
+      <input type="month" id="f-from" value="2025-01">
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Até</div>
+      <input type="month" id="f-to" value="2026-05">
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Status <span style="color:var(--text3);font-size:9px">Ctrl+clique · ⊕ Todos</span></div>
+      <button class="todos-btn" onclick="selecionarTodos('f-status')" title="Selecionar todos">⊕ Todos</button>
+      <button class="todos-btn" onclick="limparSelect('f-status')" title="Desmarcar todos" style="color:var(--text3)">⊖ Nenhum</button>
+      <select id="f-status" multiple size="5" style="min-width:130px;"></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Turno <span style="color:var(--text3);font-size:9px">Ctrl+clique · ⊕ Todos</span></div>
+      <button class="todos-btn" onclick="selecionarTodos('f-turno')" title="Selecionar todos">⊕ Todos</button>
+      <button class="todos-btn" onclick="limparSelect('f-turno')" title="Desmarcar todos" style="color:var(--text3)">⊖ Nenhum</button>
+      <select id="f-turno" multiple size="5" style="min-width:145px;"></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Cliente <span style="color:var(--text3);font-size:9px">Ctrl+clique · ⊕ Todos</span></div>
+      <button class="todos-btn" onclick="selecionarTodos('f-cliente')" title="Selecionar todos">⊕ Todos</button>
+      <button class="todos-btn" onclick="limparSelect('f-cliente')" title="Desmarcar todos" style="color:var(--text3)">⊖ Nenhum</button>
+      <select id="f-cliente" multiple size="5" style="min-width:175px;"></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Motivo <span style="color:var(--text3);font-size:9px">Ctrl+clique · ⊕ Todos</span></div>
+      <button class="todos-btn" onclick="selecionarTodos('f-motivo')" title="Selecionar todos">⊕ Todos</button>
+      <button class="todos-btn" onclick="limparSelect('f-motivo')" title="Desmarcar todos" style="color:var(--text3)">⊖ Nenhum</button>
+      <select id="f-motivo" multiple size="5" style="min-width:200px;"></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Responsável (Análise) <span style="color:var(--text3);font-size:9px">Ctrl+clique · ⊕ Todos</span></div>
+      <button class="todos-btn" onclick="selecionarTodos('f-resp')" title="Selecionar todos">⊕ Todos</button>
+      <button class="todos-btn" onclick="limparSelect('f-resp')" title="Desmarcar todos" style="color:var(--text3)">⊖ Nenhum</button>
+      <select id="f-resp" multiple size="5" style="min-width:160px;"></select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding-top:16px;">
+      <button class="apply-btn" onclick="aplicarFiltros()">Aplicar</button>
+      <button class="apply-btn" onclick="limparFiltros()" style="color:var(--text3);">Limpar</button>
+    </div>
+  </div>
+  <!-- Comparação: seletores de intervalo exibidos apenas nessa aba -->
+  <div id="comp-months" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap;gap:14px;align-items:flex-end;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <div class="filter-label" style="color:var(--accent2);">● Intervalo A</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="filter-group"><div class="filter-label">De</div><input type="month" id="c-a-from" value="2025-01"></div>
+        <div class="filter-group"><div class="filter-label">Até</div><input type="month" id="c-a-to" value="2025-03"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <div class="filter-label" style="color:var(--purple);">● Intervalo B</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="filter-group"><div class="filter-label">De</div><input type="month" id="c-b-from" value="2026-01"></div>
+        <div class="filter-group"><div class="filter-label">Até</div><input type="month" id="c-b-to" value="2026-03"></div>
+      </div>
+    </div>
+    <button class="apply-btn" onclick="renderComparacao()">Comparar</button>
+    <span style="font-size:10px;color:var(--text3);align-self:flex-end;padding-bottom:8px;">Apenas ocorrências válidas (excl. reprovadas/canceladas)</span>
+  </div>
+</div>
+
+<!-- PAINEL VISÃO GERAL -->
+<div class="panel" id="tab-visao">
+  <div style="padding:8px 0 14px;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:11px;color:var(--text3);font-family:var(--mono);">Base completa de dados · filtros não aplicados nesta aba</span>
+  </div>
+  <!-- Seção de atrasos — sempre da base completa -->
+  <div id="visao-atrasos-section" style="margin-bottom:16px;"></div>
+  <div class="kpi-grid" id="visao-kpis"></div>
+  <div class="charts-grid" style="grid-template-columns:1fr 1fr 1fr;">
+    <div class="chart-card">
+      <div class="chart-title">Situação Geral das RNCs</div>
+      <div style="position:relative;height:260px;"><canvas id="visao-pizza-situacao"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Reprovadas e Canceladas vs Válidas</div>
+      <div style="position:relative;height:260px;"><canvas id="visao-pizza-validas"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Distribuição por Turno (válidas)</div>
+      <div style="position:relative;height:260px;"><canvas id="visao-pizza-turno"></canvas></div>
+    </div>
+  </div>
+  <div class="charts-grid" style="margin-top:0;">
+    <div class="chart-card full-width">
+      <div class="chart-title">Evolução Mensal — Total de Registros</div>
+      <div class="chart-wrap-tall"><canvas id="visao-mensal"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top 10 Motivos (base completa)</div>
+      <div style="position:relative;height:260px;"><canvas id="visao-motivos"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top 10 Clientes (base completa)</div>
+      <div style="position:relative;height:260px;"><canvas id="visao-clientes"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAINEL PERÍODO -->
+<div class="panel active" id="tab-periodo">
+  <div class="kpi-grid" id="periodo-kpis"></div>
+  <div class="charts-grid">
+    <div class="chart-card full-width">
+      <div class="chart-title">Reclamações por Mês</div>
+      <div class="chart-wrap-tall"><canvas id="chart-mensal"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top Motivos</div>
+      <div class="chart-wrap-tall"><canvas id="chart-motivos"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Distribuição por Turno</div>
+      <div class="chart-wrap-tall"><canvas id="chart-turnos"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Status das RNCs</div>
+      <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top 10 Clientes</div>
+      <div class="chart-wrap"><canvas id="chart-clientes"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAINEL COMPARAÇÃO -->
+<div class="panel" id="tab-comparacao">
+  <div id="comp-content"></div>
+</div>
+
+<!-- PAINEL RESPONSÁVEL -->
+<div class="panel" id="tab-responsavel">
+  <div class="resp-grid">
+    <div class="chart-card">
+      <div class="chart-title">RNCs por Responsável de Análise</div>
+      <div style="position:relative;height:340px;"><canvas id="chart-resp-bar"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Motivos por Responsável (Top 5)</div>
+      <div id="resp-motivos-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAINEL REGISTROS -->
+<div class="panel" id="tab-registros">
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Registros de RNC</div>
+      <div class="table-count" id="table-count">–</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Data</th>
+            <th>Motivo</th>
+            <th>Responsável Análise</th>
+            <th>Turno</th>
+            <th>Cliente</th>
+            <th>Status</th>
+            <th>Situação</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DADOS EMBUTIDOS ──────────────────────────────────────────────────────────
+const RAW_DATA = [{"codigo":"25-00012","titulo":"ANJO - LT 5RT - ANJO THINNER - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-01-08","ano":2025,"mes":1,"responsavel":"Marcio da Rocha","cliente":"ANJO","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"48","turno":"Múltiplos Turnos"},{"codigo":"25-00016","titulo":"CERA SUIZA - AEROSSOL - PALLET FRÁGIL","status":"Concluída","situacao":"Fechada no prazo","data":"2025-01-08","ano":2025,"mes":1,"responsavel":"Roberta Malmann","cliente":"SINTARYC","responsavel_causa":"Roberta Malmann","motivo":"PALLET QUEBRADO","qtd":"NÃO INFORMADO","turno":"1° Turno"},{"codigo":"25-00017","titulo":"IRIS - AE 052x112 - CHAPADO BRANCO EP/EP - AÇO EXPOSTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-08","ano":2025,"mes":1,"responsavel":"Josué Erichsen","cliente":"IRIS","responsavel_causa":"Josué Erichsen","motivo":"RISCOS","qtd":"1.425.600 latas segregadas/bloqueadas - Estimativa ruim: 570.000. (±40% do lote)","turno":"Múltiplos Turnos"},{"codigo":"25-00021","titulo":"AP WINNER - AE 057x166 - WURTH ROST OFF DESCARBONIZANTE  PRO - MISTURA DE RÓTULOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-09","ano":2025,"mes":1,"responsavel":"Josué Erichsen","cliente":"AP WINNER","responsavel_causa":"Josué Erichsen","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"4","turno":"1° Turno"},{"codigo":"25-00023","titulo":"AP WINNER - AE 057 X 166 - WORKER SILICONE SPRAY  - PALLETIZAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-09","ano":2025,"mes":1,"responsavel":"Willian Essig","cliente":"AP WINNER","responsavel_causa":"Willian Essig","motivo":"PALETIZAÇÃO","qtd":"2.280","turno":"2° Turno"},{"codigo":"25-00026","titulo":"SYNGENTA - AE 057 X 166 - KLERAT MULTI INSETICIDA - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-09","ano":2025,"mes":1,"responsavel":"Patricia Viviane Althaus","cliente":"SYNGENTA","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"27","turno":"1° Turno"},{"codigo":"25-00029","titulo":"IRIS - AE 052X112 - CHAPADO BRANCO - FALHA NA APLICAÇÃO DO VERNIZ","status":"Concluída","situacao":"Fechada no prazo","data":"2025-01-10","ano":2025,"mes":1,"responsavel":"Josué Erichsen","cliente":"IRIS","responsavel_causa":"Josué Erichsen","motivo":"FALHA NA APLICAÇÃO DE VERNIZ","qtd":"114","turno":"1° Turno"},{"codigo":"25-00031","titulo":"AP WINNER - AE 057x166 - AFLOJA TODO W-MAX CHILE - DIVERGÊNCIA FÍSICO x ETIQUETA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-10","ano":2025,"mes":1,"responsavel":"Josué Erichsen","cliente":"AP WINNER","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"25.205","turno":"1° Turno"},{"codigo":"25-00042","titulo":"SYNGENTA - AE 057x166 - KLERAT MULTI INSETICIDA - AMASSAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-01-15","ano":2025,"mes":1,"responsavel":"","cliente":"SYNGENTA","responsavel_causa":"","motivo":"AMASSAMENTO","qtd":"27","turno":"Múltiplos Turnos"},{"codigo":"25-00047","titulo":"ALDORO - BD 20UR - STANLUX - FALTA DE AROS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-16","ano":2025,"mes":1,"responsavel":"Patricia Viviane Althaus","cliente":"ALDORO","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"2.185","turno":"2° Turno"},{"codigo":"25-00056","titulo":"DALEGRIA - AE 052x137 - TINTA VERDE L002 - DIVERGÊNCIA QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-17","ano":2025,"mes":1,"responsavel":"Josué Erichsen","cliente":"DALEGRIA","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"495","turno":"1° Turno"},{"codigo":"25-00063","titulo":"FARBEN - LT 073S FARBEN ESM SINT STANDARD EP/GF PLUS - TAMPA GIRANDO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-20","ano":2025,"mes":1,"responsavel":"Filipe Valle","cliente":"FARBEN","responsavel_causa":"Filipe Valle","motivo":"FECHAMENTO","qtd":"17.040","turno":"1° Turno"},{"codigo":"25-00079","titulo":"FARBEN - LT 099x140 FARBEN ENDU NA - FECHAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-22","ano":2025,"mes":1,"responsavel":"Marcio da Rocha","cliente":"FARBEN","responsavel_causa":"Marcio da Rocha","motivo":"FECHAMENTO","qtd":"263","turno":"1° Turno"},{"codigo":"25-00080","titulo":"WEG-BD 20 UN GHS -FALTA DO ENVIO DE TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-22","ano":2025,"mes":1,"responsavel":"Marcio da Rocha","cliente":"WEG","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"211","turno":"1° Turno"},{"codigo":"25-00090","titulo":"TINTAS CHARRUA - LT 018L - CHARRUA FOSCO AVELUDADO BIPLUS - DIVERGÊNCIA DE ACABAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-01-23","ano":2025,"mes":1,"responsavel":"Bruna Maria Berch","cliente":"TINTAS CHARRUA","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"200","turno":"2° Turno"},{"codigo":"25-00093","titulo":"PORTALPACK - OSCAR FLUES - 1LTR BP-24 - VAZAMENTO PELA SOLDA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-23","ano":2025,"mes":1,"responsavel":"Marcio da Rocha","cliente":"PORTAL PACK","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"60","turno":"1° Turno"},{"codigo":"25-00108","titulo":"ANJO - LT 127 X 075 - ANJO POLIESTER OCTANO FX TP - QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-27","ano":2025,"mes":1,"responsavel":"Patricia Viviane Althaus","cliente":"ANJO","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"1.000","turno":"2° Turno"},{"codigo":"25-00109","titulo":"ANJO - LT 004S 105X120 ANJO POLIESTER CARBON - DIVERGÊNCIA ETIQUETA X FISICO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-01-27","ano":2025,"mes":1,"responsavel":"Vania Ines Selgen","cliente":"ANJO","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"2.154","turno":"2° Turno"},{"codigo":"25-00110","titulo":"ANJO - LT 004S 120 ANJO TIN. POLIE. CARB. MIX EP/NA - FALTA DE TAMPAS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-27","ano":2025,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Willian Essig","motivo":"FALTA DE MATERIAL","qtd":"2016","turno":"2° Turno"},{"codigo":"25-00113","titulo":"SILTEC-AE 065x158 ALE ETANOL- DIVERGÊNCIA DE ENVIO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-01-28","ano":2025,"mes":1,"responsavel":"Vania Ines Selgen","cliente":"SILTEC","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"11.025","turno":"1° Turno"},{"codigo":"25-00114","titulo":"DALEGRIA - AE 052X137 TINTA LARANJA L002 - QUANTIDADE","status":"Associada","situacao":"Fechada atrasada","data":"2025-01-28","ano":2025,"mes":1,"responsavel":"Julio Cesar de Pelegrin Fighera","cliente":"DALEGRIA","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"409","turno":"1° Turno"},{"codigo":"25-00119","titulo":"AEROFLEX - AE 052X112 HENKEL FRESH AIR - LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-01-29","ano":2025,"mes":1,"responsavel":"Luciano Gabriel","cliente":"AEROFLEX","responsavel_causa":"Luciano Gabriel","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"4.951","turno":"1° Turno"},{"codigo":"25-00129","titulo":"JIMO - AE 057X206 JIMO MULTI SUPERFICIES - QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-03","ano":2025,"mes":2,"responsavel":"Patricia Viviane Althaus","cliente":"JIMO","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"4.000","turno":"2° Turno"},{"codigo":"25-00132","titulo":"SOLVEN - BD 20 UN -VAZAMENTO PELA ORELHA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-04","ano":2025,"mes":2,"responsavel":"Marcio da Rocha","cliente":"SOLVEN","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"52","turno":"1° Turno"},{"codigo":"25-00135","titulo":"DALEGRIA - AE 052X206 SPUMINHA DA ALEGRIA - ATRASO NA ENTREGA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-05","ano":2025,"mes":2,"responsavel":"Patricia Viviane Althaus","cliente":"DALEGRIA","responsavel_causa":"Patricia Viviane Althaus","motivo":"ATRASO NA ENTREGA","qtd":"19.069","turno":"1° Turno"},{"codigo":"25-00151","titulo":"SHERWIN-WILLIAMS - BD 20UR SUMARE TR AC/NA - FALTA DE TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-07","ano":2025,"mes":2,"responsavel":"Marcio da Rocha","cliente":"SHERWIN WILLIAMS","responsavel_causa":"Marcio da Rocha","motivo":"FALTA DE MATERIAL","qtd":"264","turno":"1° Turno"},{"codigo":"25-00157","titulo":"PROCHEM 65X189 AC/NA -VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-02-08","ano":2025,"mes":2,"responsavel":"Julio Cesar de Pelegrin Fighera","cliente":"PROCHEM","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"VAZAMENTO","qtd":"30","turno":"3° Turno"},{"codigo":"25-00158","titulo":"AEROMAG-57X206- PROPECK LIMPA VIRDOS  -VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-02-08","ano":2025,"mes":2,"responsavel":"Joel Mallmann","cliente":"AEROMAG","responsavel_causa":"Joel Mallmann","motivo":"VAZAMENTO","qtd":"100","turno":"1° Turno"},{"codigo":"25-00167","titulo":"BASTON- FOLHA 45x206 DESENGRIPANTE TECBRIL -ESMALTE SOBRE A RESERVA D ESOLDA","status":"Associada","situacao":"Fechada atrasada","data":"2025-02-10","ano":2025,"mes":2,"responsavel":"","cliente":"BASTON","responsavel_causa":"","motivo":"LITOGRAFIA DESLOCADA","qtd":"10 folhas","turno":"1° Turno"},{"codigo":"25-00171","titulo":"PORTALPACK - IQL TINTAS - LT 001 PLUS - VAZAMENTO PELA TAMPA","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-02-11","ano":2025,"mes":2,"responsavel":"Adailton Paulino","cliente":"PORTAL PACK","responsavel_causa":"Adailton Paulino","motivo":"VAZAMENTO","qtd":"80","turno":"1° Turno"},{"codigo":"25-00183","titulo":"JIMO - AE 057X206 - PAFF CONTRA INSECTOS -FALTA DE LAUDO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-02-12","ano":2025,"mes":2,"responsavel":"Patricia Viviane Althaus","cliente":"JIMO","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"0","turno":"1° Turno"},{"codigo":"25-00184","titulo":"AP WINNER AE 57X166 WURTH ROST OFF EXPORTAÇÃO-  MISTURA ENTRE ROTULOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-12","ano":2025,"mes":2,"responsavel":"Julio Cesar de Pelegrin Fighera","cliente":"AP WINNER","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"12.624","turno":"3° Turno"},{"codigo":"25-00187","titulo":"AP WINNER- AE 57X166 SIEGER DOURADO- ESFOLAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-02-13","ano":2025,"mes":2,"responsavel":"André Marcelo Diehl","cliente":"AP WINNER","responsavel_causa":"André Marcelo Diehl","motivo":"ESFOLAMENTO","qtd":"1.934","turno":"1° Turno"},{"codigo":"25-00189","titulo":"PAUMAVE - BD 20R AC/NA PLUS - FALTA DE TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-13","ano":2025,"mes":2,"responsavel":"Patricia Viviane Althaus","cliente":"PAUMAVE","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"553","turno":"1° Turno"},{"codigo":"25-00232","titulo":"SHERWIN WILLIAMS - AE 065x158 - COLORGIN USO GERAL - BOLHAS","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-02-21","ano":2025,"mes":2,"responsavel":"Josué Erichsen","cliente":"SHERWIN WILLIAMS","responsavel_causa":"Josué Erichsen","motivo":"BOLHA NA RECRAVAÇÃO","qtd":"01","turno":"1° Turno"},{"codigo":"25-00233","titulo":"AP WINNER- 57X166-RNC 028-25- WD 40 LITOGRAFIA DESLOCADA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-02-21","ano":2025,"mes":2,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"André Marcelo Diehl","motivo":"LITOGRAFIA DESLOCADA","qtd":"08","turno":"3° Turno"},{"codigo":"25-00237","titulo":"ALLCHEM QUIMICA - AE 057 X206 - AC/NA - VAZAMENTO/OXIDAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-02-21","ano":2025,"mes":2,"responsavel":"Willian Essig","cliente":"ALLCHEM QUIMICA","responsavel_causa":"Willian Essig","motivo":"OXIDAÇÃO","qtd":"0","turno":"2° Turno"},{"codigo":"25-00243","titulo":"CENTRALSUL- AE 57X206 BCO/NA- OXIDAÇÃO NA VIROLA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-02-24","ano":2025,"mes":2,"responsavel":"Vania Ines Selgen","cliente":"CENTRALSUL","responsavel_causa":"Vania Ines Selgen","motivo":"OXIDAÇÃO","qtd":"1.900","turno":"1° Turno"},{"codigo":"25-00247","titulo":"KONIG - AE 057X206 - BACTROVET BILINGUE - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-02-24","ano":2025,"mes":2,"responsavel":"Josué Erichsen","cliente":"KONIG","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"2","turno":"1° Turno"},{"codigo":"25-00265","titulo":"TSA QUIMICA BD 20UN -CHAPADO PRETO/EP- ABALUAMENTO NO FUNDO APÓS ENVASADO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-02-27","ano":2025,"mes":2,"responsavel":"Joel Mallmann","cliente":"TSA QUÍMICA","responsavel_causa":"Joel Mallmann","motivo":"ABAULAMENTO","qtd":"100","turno":"1° Turno"},{"codigo":"25-00269","titulo":"PAUMAVE- LT99X135- PAUMAVE DIABET VANILLA- MISTURA DE ROTULOS","status":"Concluída","situacao":"Fechada no prazo","data":"2025-02-28","ano":2025,"mes":2,"responsavel":"Bruna Maria Berch","cliente":"PAUMAVE","responsavel_causa":"Willian Essig","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"140","turno":"2° Turno"},{"codigo":"25-00280","titulo":"EUROFARMA-AE 65X100 SILVERBAC- AVARIA DE TRANSPORTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-05","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"AEROFARMA","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"14","turno":"1° Turno"},{"codigo":"25-00281","titulo":"MAAHSA - AE 057X 206 - LOTES DIVERSOS - AVARIA DE TRANSPORTE","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-03-05","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"MAAHSA","responsavel_causa":"Vinicius Geraldo","motivo":"AVARIAS DE TRANSPORTE","qtd":"0","turno":"2° Turno"},{"codigo":"25-00282","titulo":"TSA QUIMICA- BD 20UN - CHAPADO  PRETO/EP -VAZAMENTO PELO CORPO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-03-05","ano":2025,"mes":3,"responsavel":"Joel Mallmann","cliente":"TSA QUÍMICA","responsavel_causa":"Joel Mallmann","motivo":"VAZAMENTO","qtd":"10","turno":"1° Turno"},{"codigo":"25-00284","titulo":"TSA QUIMICA BD 20 UN CHAPADO PRETO/EP-  VAZAMENTO PELA ORELHA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-03-05","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"TSA QUÍMICA","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"02","turno":"1° Turno"},{"codigo":"25-00292","titulo":"IPANEMA - AE 057x206 - ECTOLINE SPRAY CAMPE - PADRÃO DE COR","status":"Concluída","situacao":"Fechada no prazo","data":"2025-03-06","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"IPANEMA","responsavel_causa":"André Marcelo Diehl","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"32.720","turno":"3° Turno"},{"codigo":"25-00293","titulo":"PRONUTRITION - LT099 x122 - HYPER CREATINA DECOR TOP - DIVERGENCIA DE ACABAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-03-07","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"PRONUTRITION","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"1.798","turno":"1° Turno"},{"codigo":"25-00296","titulo":"WEG- BD 20UN GHS- FALTA DE GAXETA NA TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-07","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"WEG","responsavel_causa":"Marcio da Rocha","motivo":"TAMPA SEM GAXETA","qtd":"264","turno":"1° Turno"},{"codigo":"25-00298","titulo":"RESICOLOR- LT004S RESITREX VERNIZ- DIVERGENCIA DE QUANTIDADE X NF","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-10","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"RESICOLOR","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"2.160","turno":"3° Turno"},{"codigo":"25-00300","titulo":"PORTAL PACK - LT 004 120 - ACAB/NA PLUS - FALTA DE TAMPAS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-10","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"PORTAL PACK","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"216","turno":"3° Turno"},{"codigo":"25-00314","titulo":"AUTOMOTIVOS 2001 - LT 099x77 - AUTOMOTIVOS MASSA DE POLIR - FALTA DE TAMPAS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-12","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"AUTOMOTIVOS 2001","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"7.421","turno":"2° Turno"},{"codigo":"25-00317","titulo":"J.V.S. INTERAMERICANA S.A -  AE 65X158 AC/NA  - DIVERGÊNCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-12","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"J.V.S. INTERAMERICANA S.A","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"315","turno":"1° Turno"},{"codigo":"25-00318","titulo":"CENTRALSUL- AE57X166 -LIMPA AR ATENAS- DIVERGÊNCIA NO VERNIZ DE ACABAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-14","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"CENTRALSUL","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"5.863","turno":"1° Turno"},{"codigo":"25-00324","titulo":"HM RUBBER- LT 5RT- FALTA DE ENVIO DOS BICOS PLASTICOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-17","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"HM RUBBER","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"1.504","turno":"2° Turno"},{"codigo":"25-00335","titulo":"CLIENTE REICHOLD- BALDE 20 UR REICHOLD AZUL- TAMPAS AZUL  SEM GAXETA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-03-17","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"REICHOLD (POLITINT)","responsavel_causa":"Patricia Viviane Althaus","motivo":"TAMPA SEM GAXETA","qtd":"1.584","turno":"1° Turno"},{"codigo":"25-00339","titulo":"RESICOLOR -LT004S 120 -RESICOLOR EXTRA ESMALTE COLOR  -PADRÃO DE COR","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-18","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"André Marcelo Diehl","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"2.000","turno":"1° Turno"},{"codigo":"25-00348","titulo":"SINTEPLAST- LT 001S 204- INDUPLAST - DIVERÊNCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-19","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"SINTEPLAST","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"48","turno":"1° Turno"},{"codigo":"25-00377","titulo":"INDUSTRIAL SUPPLIES CAYMAN - TAMPA TR GARRA PTO/NA - CONDIÇÃO DE TRANSPORTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-03-25","ano":2025,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"INDUSTRIAL SUPPLIES CAYMAN","responsavel_causa":"Vania Ines Selgen","motivo":"PALETIZAÇÃO","qtd":"1920","turno":"2° Turno"},{"codigo":"25-00408","titulo":"REICHHOLD/POLYNT - BD 20UR - REICHHOLD AZUL - TAMPA INCORRETA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-03-28","ano":2025,"mes":3,"responsavel":"Bruna Maria Berch","cliente":"REICHOLD (POLITINT)","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"32","turno":"2° Turno"},{"codigo":"25-00437","titulo":"IPANEMA - AE 057x206 - ECTOLINE SPRAY CAMPE - MISTURA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-03","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"IPANEMA","responsavel_causa":"Willian Essig","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"02","turno":"2° Turno"},{"codigo":"25-00463","titulo":"FARBEN - 099X140 - FARBEN ENDU NA - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-07","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"250","turno":"1° Turno"},{"codigo":"25-00488","titulo":"AP WINNER- AE 057X166 W MAX CHILE- AVARIA DE TRANSPORTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-10","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"2.280","turno":"2° Turno"},{"codigo":"25-00491","titulo":"ALDORO - BD 20UR STANLUX - FALTA  DE ARO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-14","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"ALDORO","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"192","turno":"2° Turno"},{"codigo":"25-00508","titulo":"PORTAL PACK - LT 1RL 175 - AC/NA EP/NA - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-14","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"10","turno":"2° Turno"},{"codigo":"25-00512","titulo":"EPHOXAL - BD 18UR C BRANCO HOMO - DIVERGÊCIA DE ACESSÓRIO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-15","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"EPHOXAL","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"720","turno":"1° Turno"},{"codigo":"25-00529","titulo":"PPG SUMARÉ - LT 004 133 - PPG SP CONC. - FECHAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-15","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"PPG","responsavel_causa":"Willian Essig","motivo":"FECHAMENTO","qtd":"3.750","turno":"2° Turno"},{"codigo":"25-00546","titulo":"MAASHA 57X193 CHAPADO BRANCO/EP -ROTULADO COM MAFRECH NATURALIZA -VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-04-21","ano":2025,"mes":4,"responsavel":"Joel Mallmann","cliente":"MAAHSA","responsavel_causa":"Joel Mallmann","motivo":"VAZAMENTO","qtd":"3.216","turno":"1° Turno"},{"codigo":"25-00547","titulo":"MAASHA  57X206 BCO/NA  - ROTULOADO COM PRODUTO TRANKA OLEOSA -VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-04-21","ano":2025,"mes":4,"responsavel":"Joel Mallmann","cliente":"MAAHSA","responsavel_causa":"Joel Mallmann","motivo":"VAZAMENTO","qtd":"3.727","turno":"1° Turno"},{"codigo":"25-00559","titulo":"AP WINNER AE57X166 RNC 066 WD 40 -LITOGRAFIA FALTANDO AMARELO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-22","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Marcos Schorr","motivo":"FALHA NA LITOGRAFIA/ESMALTE/VERNIZ","qtd":"05","turno":"2° Turno"},{"codigo":"25-00560","titulo":"AP WINNER  AE57X166 RNC 067- LIMPACONTATO W MAX CHILE- AVARIA DE TRANSPORTE","status":"Cancelada","situacao":"Fechada no prazo","data":"2025-04-22","ano":2025,"mes":4,"responsavel":"Joel Mallmann","cliente":"AP WINNER","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"2.280","turno":"2° Turno"},{"codigo":"25-00561","titulo":"AP WINNER- AE 57X166 -RNC 069 WHURTH ROST OFF CHILLE- MANCHA NA LITORAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-22","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Alexandre Alves Carvalho","motivo":"LITOGRAFIA MANCHADA","qtd":"45","turno":"2° Turno"},{"codigo":"25-00562","titulo":"AP WINNER AE 57X166 RNC 070 DESIGRIPANTE SIEGER PRETO - LITOGRAFIA FORA DE REGISTRO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-22","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Marcos Schorr","motivo":"LITOGRAFIA/CORTE FORA DE REGISTRO","qtd":"40","turno":"2° Turno"},{"codigo":"25-00563","titulo":"WEG -BD 20UN- RNC 216403294- ARO COM REBARBA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-22","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"WEG","responsavel_causa":"Bernadete Rosenbach","motivo":"FECHAMENTO","qtd":"1055","turno":"1° Turno"},{"codigo":"25-00573","titulo":"AP WINNER - AE 057x166 - LIMPIA CONTACTOS W MAX MEXICO - DIVERGÊNCIA DE IDENTIFICAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-24","ano":2025,"mes":4,"responsavel":"Rodrigo Maróstica","cliente":"AP WINNER","responsavel_causa":"Rodrigo Maróstica","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"1.080","turno":"2° Turno"},{"codigo":"25-00575","titulo":"RECOZIL-LT004S X120 AC/NA CONVENCIONAL- DIVERGENCIA NA QUANTIDADE DE TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-24","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"RECOZIL","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"250","turno":"3° Turno"},{"codigo":"25-00583","titulo":"TSA QUIMICA - BD 20 NT CHAPADO PRETO/EP- DIVERGENCIA NAS TAMPAS ENVADAS.","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-24","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"TSA QUÍMICA","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"240","turno":"1° Turno"},{"codigo":"25-00585","titulo":"AP WINNER - AE 057x166 - LIMPA CONTATO LOCTITE - DIVERGÊNCIA DE IDENTIFICAÇÃO","status":"Associada","situacao":"Fechada no prazo","data":"2025-04-24","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Rodrigo Maróstica","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"649","turno":"1° Turno"},{"codigo":"25-00603","titulo":"KILLING - LT 004S 120 KISAFIX EP/NA - DIVERGÊNCIA ETIQUETA X FÍSICO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-25","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Fernando Bazanella","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"2.160","turno":"3° Turno"},{"codigo":"25-00623","titulo":"AEROFLEX AE 52X206 RNC 013 -ZIP CLEAN ESP DESENGORDANTE- VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-04-29","ano":2025,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"AEROFLEX","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"2.000","turno":"1° Turno"},{"codigo":"25-00631","titulo":"REICHHOLD/POLYNT - BD 20UR - REICHHOLD AZUL - TAMPA INCORRETA","status":"Associada","situacao":"Fechada atrasada","data":"2025-04-29","ano":2025,"mes":4,"responsavel":"","cliente":"REICHOLD (POLITINT)","responsavel_causa":"","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"Aguardando chegada da devolução.","turno":"2° Turno"},{"codigo":"25-00632","titulo":"DISAL LT 1RL 112x057x175- HYDRA - DIVERGENCIA DE QUANTIDADES","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-29","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"DISAL","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"77","turno":"1° Turno"},{"codigo":"25-00633","titulo":"AP WINNER AE 57X098 RNC 076-25 LIMPA AR WURTH - MANCHA NA LITOGRAFIA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-29","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Alexandre Alves Carvalho","motivo":"LITOGRAFIA MANCHADA","qtd":"12","turno":"1° Turno"},{"codigo":"25-00636","titulo":"DACAR - LT004S 120- ESMALTE SINT.  FALTA NO ENVIO DE TAMPAS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-30","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"DACAR","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"8.760","turno":"1° Turno"},{"codigo":"25-00646","titulo":"ABCOL - LT 18NT - CHAPADO BRANCO EP/NA BP 57 - DIVERGÊNCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-04-30","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"ABCOL","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"02 LATAS + 87 BICOS","turno":"2° Turno"},{"codigo":"25-00647","titulo":"KALEIDOSCOPE - LT 001S 192 - IRON GUARD EP/NA CONV - MISTURA","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-04-30","ano":2025,"mes":4,"responsavel":"Bruna Maria Berch","cliente":"KALEIDOSCOPE","responsavel_causa":"Bruna Maria Berch","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"477","turno":"3° Turno"},{"codigo":"25-00655","titulo":"FARBEN - LT 004S 120 FARBEN INDUSTRIA EP/NA 140 - ENTREGA DIVERGENTE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-05","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA NA FURAÇÃO, DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"2.088","turno":"2° Turno"},{"codigo":"25-00657","titulo":"AKZO - LT 001S 204 AKZO BRIK COL LADRILLOS - IDENTIFICAÇÃO DIVERGENTE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-05","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"AKZO NOBEL","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"108","turno":"3° Turno"},{"codigo":"25-00660","titulo":"PORTAL PACK - LT 05R - AC/NA 24 REL - DIVERGÊNCIA DE IDENTIFICAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-05","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"PORTAL PACK","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"2.496","turno":"2° Turno"},{"codigo":"25-00667","titulo":"AKZO - BD 18UR AKZO ALBAVIAL AC/NA - ACONDICIONAMENTO DA CARGA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-06","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"AKZO NOBEL","responsavel_causa":"Patricia Viviane Althaus","motivo":"ACONDICIONAMENTO","qtd":"480","turno":"2° Turno"},{"codigo":"25-00685","titulo":"TECBRIL- LT 18 UN BP57-  VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-08","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"TECBRIL","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"04","turno":"1° Turno"},{"codigo":"25-00700","titulo":"AP WINNER - AE 057x166 - WURTH ROST OFF MECHANIC - DIVERGÊNCIA DE IDENTIFICAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-09","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"2.280","turno":"1° Turno"},{"codigo":"25-00735","titulo":"TECBRIL- LT 18 UN BP57-  QUEDA DA AZELHA (ALÇA)","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-14","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"TECBRIL","responsavel_causa":"Marcio da Rocha","motivo":"QUEDA/RUPTURA DA AZELHA/ALÇA","qtd":"02","turno":"1° Turno"},{"codigo":"25-00736","titulo":"IRIS - AE 065X100 CHAPADO BCO/EP - QUANTIDADE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-15","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"IRIS","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"15","turno":"2° Turno"},{"codigo":"25-00737","titulo":"KILLING- LT001 S 189- ITEM DIVERGENTE DO ENVIADO NA NF","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-15","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"594","turno":"2° Turno"},{"codigo":"25-00759","titulo":"AP WINNER - RNC 080 - AE 57X166 - DESENG LUBE STARRET - LITOGRAFIA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-17","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Alexandre Alves Carvalho","motivo":"FALHA NA LITOGRAFIA/ESMALTE/VERNIZ","qtd":"03","turno":"2° Turno"},{"codigo":"25-00760","titulo":"AP WINNER - RNC 078 - AE 57X166 - AFLOJA TODO W-MAX - PALLETS MAL STRETCHADOS","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-17","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"AP WINNER","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"PROBLEMA NO MATERIAL DE EMBALAGEM","qtd":"5.716","turno":"3° Turno"},{"codigo":"25-00789","titulo":"ANJO LT 5RT ANJO AGUARAZ EP/EP-  VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-05-23","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"ANJO","responsavel_causa":"Bruna Maria Berch","motivo":"VAZAMENTO","qtd":"0","turno":"1° Turno"},{"codigo":"25-00790","titulo":"SNAPON - AE 057X 166 MM - CAR CONTATO - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-25","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"SNAP ON","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"8","turno":"1° Turno"},{"codigo":"25-00803","titulo":"VIPAL - BD 20UR MARANGONI TR - FALTA DE ACESSÓRIOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-26","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"BORRACHAS VIPAL","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"12","turno":"2° Turno"},{"codigo":"25-00813","titulo":"POWERPOXI - BD 20UR CHAPADO TP BCO/NA HOMO - FALTA DE ACESSÓRIOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-27","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"POWERPOXI","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"1.088","turno":"2° Turno"},{"codigo":"25-00837","titulo":"PORTAL PACK - AE 065X158MM - CHAPADO BRANCO - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-05-29","ano":2025,"mes":5,"responsavel":"Bruna Maria Berch","cliente":"PORTAL PACK","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"293","turno":"2° Turno"},{"codigo":"25-00845","titulo":"DACAR - LT 004S 120 - DACAR ESM ECOLÓGICO EP/GF PLUS - DIVERGÊNCIA DE MATERIAL (TAMPAS)","status":"Concluída","situacao":"Fechada atrasada","data":"2025-05-30","ano":2025,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"DACAR","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"38","turno":"3° Turno"},{"codigo":"25-00862","titulo":"SNAPON - AE 057x137 - CAR80 PROT CORREIA - REFILO DOMO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-06-03","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"SNAP ON","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"MARCAS DE REFILO","qtd":"01","turno":"3° Turno"},{"codigo":"25-00864","titulo":"RESICOLOR - LT 18 RESIC SUPER COBERTURA EP/GF BIPLUS - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-06-03","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"13","turno":"1° Turno"},{"codigo":"25-00876","titulo":"PAUMAVE - LT 099X105 PAUMAVE CN CREATINA EP INC/EP - ACONDICIONAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-06-05","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Willian Essig","motivo":"ACONDICIONAMENTO","qtd":"8","turno":"2° Turno"},{"codigo":"25-00888","titulo":"FARBEN - GALVIBEN ACRILICO DF BRANCO - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-06","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"1","turno":"2° Turno"},{"codigo":"25-00914","titulo":"TESTE ABC","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-10","ano":2025,"mes":6,"responsavel":"Bruna Maria Berch","cliente":"BRASILATA RS","responsavel_causa":"Bruna Maria Berch","motivo":"ABA ABERTA","qtd":"1","turno":"2° Turno"},{"codigo":"25-00921","titulo":"RECOZIL - BD 20UR - CHAPADO BRANCO TP AC/NA - DIVERGÊNCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-06-12","ano":2025,"mes":6,"responsavel":"Bruna Maria Berch","cliente":"RECOZIL","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"16","turno":"1° Turno"},{"codigo":"25-00928","titulo":"VULCAFELX - BD 18NT CHAPADO BRANCO -  MATERIAL DIVERGENTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-06-12","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"VULCAFLEX","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"554","turno":"1° Turno"},{"codigo":"25-00980","titulo":"MEKAL - LT 004S EP/NA BP42 - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-13","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"MEKAL","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"10","turno":"2° Turno"},{"codigo":"25-01006","titulo":"DUVON - BALDE UN - DUVON REVESTIMENTO - AMASSAMENTO/FISSURA NO CORPO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-16","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"DUVON REVESTIMENTOS","responsavel_causa":"Vinicius Geraldo","motivo":"CORTE/FISSURA, VAZAMENTO","qtd":"1","turno":"2° Turno"},{"codigo":"25-01023","titulo":"KILLING - LT 001S - KISATECH IMPERMEAB - DIVERGÊNCIA DE FECHAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-06-24","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Vania Ines Selgen","motivo":"FECHAMENTO","qtd":"850","turno":"2° Turno"},{"codigo":"25-01031","titulo":"EUROFARMA - AE 057x206 - SILVERBAC - AUSÊNCIA DE LAUDOS/NOTAS","status":"Concluída","situacao":"Fechada no prazo","data":"2025-06-24","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"EUROFARMA","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"328.000","turno":"2° Turno"},{"codigo":"25-01035","titulo":"ALIBEM - LT 018 - BANHA ALIBEM 16KG - DIVERGÊNCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-06-25","ano":2025,"mes":6,"responsavel":"Bruna Maria Berch","cliente":"ALIBEM ALIMENTOS S.A","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"50","turno":"2° Turno"},{"codigo":"25-01049","titulo":"INOVE PACK / PORTALPACK - AE52X112 - MARVIL CHAIN MOTION - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-26","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"837","turno":"1° Turno"},{"codigo":"25-01050","titulo":"PORTAL PACK - LT 05R - AC/NA BP 24 REL - PALETE QUEBRADO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-06-26","ano":2025,"mes":6,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"PALLET QUEBRADO","qtd":"3.900","turno":"2° Turno"},{"codigo":"25-01051","titulo":"KILLING - LT 18UN - KISAFIX TPA - DIVERGÊNCIA DE IDENTIFICAÇÃO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-06-27","ano":2025,"mes":6,"responsavel":"Bruna Maria Berch","cliente":"KILLING","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"175","turno":"2° Turno"},{"codigo":"25-01054","titulo":"FARBEN - LT 5RT - FARBEN THINNER - VAZAMENTO (SAC 69232 - LOJISTA MG)","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-30","ano":2025,"mes":6,"responsavel":"Bruna Maria Berch","cliente":"FARBEN","responsavel_causa":"Bruna Maria Berch","motivo":"VAZAMENTO","qtd":"40","turno":"1° Turno"},{"codigo":"25-01055","titulo":"KOUBE - AE 065X189 - ACAB/NA - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-06-30","ano":2025,"mes":6,"responsavel":"Bruna Maria Berch","cliente":"KOUBE","responsavel_causa":"Bruna Maria Berch","motivo":"VAZAMENTO","qtd":"70","turno":"1° Turno"},{"codigo":"25-01057","titulo":"RECOZIL - LT 001S - ACAB/NA PLUS - DIVERGÊNCIA DE MATERIAL","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-01","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"RECOZIL","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"775","turno":"1° Turno"},{"codigo":"25-01075","titulo":"KILLING - LT 18UN - KILLING BC ESMALTE SINT BP 57 - FALTA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2025-07-03","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Vania Ines Selgen","motivo":"FALTA DE MATERIAL","qtd":"39","turno":"2° Turno"},{"codigo":"25-01077","titulo":"SOLID - LT 001S 189 TRANSOCEANS EP/NA PLUS - DIVERGÊNCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-03","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"GRUPO SOLID","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"48","turno":"3° Turno"},{"codigo":"25-01088","titulo":"POWERPOXI - LT 4RT C BRANCO EP/NA - ACONDICIONAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-07","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"POWERPOXI","responsavel_causa":"Patricia Viviane Althaus","motivo":"ACONDICIONAMENTO","qtd":"18","turno":"1° Turno"},{"codigo":"25-01092","titulo":"ANJO - LT 5RT - ANJO THINNER - SAC DISBEC - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-07-09","ano":2025,"mes":7,"responsavel":"Bruna Maria Berch","cliente":"ANJO","responsavel_causa":"Bruna Maria Berch","motivo":"VAZAMENTO","qtd":"1.000","turno":"2° Turno"},{"codigo":"25-01100","titulo":"ANJO - LT 127X75 ANJO POLIESTER OCTANO AC/NA - DIVERGENCIA DE MATERIAL","status":"Concluída","situacao":"Fechada no prazo","data":"2025-07-10","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"3.250","turno":"2° Turno"},{"codigo":"25-01115","titulo":"CIAFLEX - BD 18R CHAPADO BCO/NA TR - AMASSAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-07-14","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"CIAFLEX","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"384","turno":"2° Turno"},{"codigo":"25-01125","titulo":"SINTEPLAST - AE 065X158 PENETRIT 10 FUNCIONES EP/NA  - QUANTIDADE DIVERGENTE","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-07-14","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"SINTEPLAST","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"20","turno":"2° Turno"},{"codigo":"25-01132","titulo":"KILLING - BD 18UR LINHA INDUSTRIAL TP AC/NA - FALTA DE ACESSÓRIO","status":"Associada","situacao":"Fechada atrasada","data":"2025-07-16","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Vania Ines Selgen","motivo":"FALTA DE MATERIAL","qtd":"850","turno":"1° Turno"},{"codigo":"25-01136","titulo":"PAUMAVE - LT 004S 133 CHAPADO BCO/GF - DIVERGENCIA REVESTIMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-17","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"2016","turno":"2° Turno"},{"codigo":"25-01151","titulo":"PORTAL PACK - LT 05RETANGULAR - NA/NA   BICO 24 - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-21","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"104","turno":"2° Turno"},{"codigo":"25-01162","titulo":"PORTAL PACK/ OSCAR FLUES- LT 1L RETANGULAR - NA/NA - BICO PLASTICO 24 - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-22","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"64","turno":"2° Turno"},{"codigo":"25-01163","titulo":"PORTAL PACK - LT 5RT NA/NA - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-22","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"12","turno":"3° Turno"},{"codigo":"25-01164","titulo":"H TINTAS LT 18 UN - BP57 - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-22","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"PEREIRA HOLANDA","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"6","turno":"1° Turno"},{"codigo":"25-01179","titulo":"KILLING - LT001 -DIVERGENCIA DE FECHAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-07-24","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Marcio da Rocha","motivo":"FECHAMENTO","qtd":"2.581","turno":"1° Turno"},{"codigo":"25-01187","titulo":"GAMACOR - BD 18L CHAPADO BRANCO TR - AMASSAMENTO","status":"Aberta","situacao":"No prazo","data":"2025-07-25","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"GAMACOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"2","turno":"2° Turno"},{"codigo":"25-01216","titulo":"FARBEN - LT 001 - VAZAMENTO NO ANEL","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-31","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"11","turno":"2° Turno"},{"codigo":"25-01217","titulo":"KILLING - LT 18 UN KISALUX 300 -  DIVERGENCIA NA FURAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-07-31","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA NA FURAÇÃO","qtd":"11","turno":"2° Turno"},{"codigo":"25-01219","titulo":"SHERWIN SUMARÉ - BD 20 UR - SUMARÉ  - DIFICULDADE DE FECHAMENTO - CINTA APERTADA","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-07-31","ano":2025,"mes":7,"responsavel":"Vinicius Geraldo","cliente":"SHERWIN WILLIAMS","responsavel_causa":"","motivo":"FECHAMENTO","qtd":"19","turno":"2° Turno"},{"codigo":"25-01224","titulo":"ANJO - LT18NT ANJO THINNER TH007 C/BAT - DIVERGENCIA DE FECHAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-04","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA NA FURAÇÃO","qtd":"316","turno":"1° Turno"},{"codigo":"25-01226","titulo":"LECHLER - BALDE 18 UN CHEREON DECOR - DIVERGENCIA DE ACESSÓRIO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-04","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"LECHLER","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"2112","turno":"1° Turno"},{"codigo":"25-01227","titulo":"FARBEN - LT 18NT FARBEN THINNER 5000/6000 - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-04","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"220","turno":"1° Turno"},{"codigo":"25-01233","titulo":"TECBRIL - LT 001S TECBRIL CONVENCIONAL - FECHAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-04","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"TECBRIL","responsavel_causa":"Marcio da Rocha","motivo":"FECHAMENTO","qtd":"285","turno":"1° Turno"},{"codigo":"25-01238","titulo":"PAUMAVE - LT 099x135 - ROTULOS DIVERSOS - ACONDICIONAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-08-05","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Patricia Viviane Althaus","motivo":"ACONDICIONAMENTO","qtd":"5 caixas","turno":"2° Turno"},{"codigo":"25-01239","titulo":"PAUMAVE - LT 073X072 EP/GF - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-05","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Rodrigo Maróstica","motivo":"AMASSAMENTO","qtd":"8","turno":"2° Turno"},{"codigo":"25-01240","titulo":"PAUMAVE - LT 099X135 PAUMAVE CREATINA - DESCRIÇÃO DIVERGENTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-05","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"381","turno":"2° Turno"},{"codigo":"25-01246","titulo":"WEG - LT 099X210 ACABAMENTO NATURAL -  DIVERGENTE FISICO X ETIQUETA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-08-06","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"WEG","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"715","turno":"2° Turno"},{"codigo":"25-01250","titulo":"AP WINNER - AE 057X166 WURTH SILICONE EXPO - MISTURA DE ROTULO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-06","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"2","turno":"3° Turno"},{"codigo":"25-01262","titulo":"RECKITT - RNC 136.25 - AE 057X238 - AC/EP - PALETES MOLHADOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-07","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"RECKITT","responsavel_causa":"Patricia Viviane Althaus","motivo":"EMBALAGENS MOLHADAS","qtd":"4.560","turno":"2° Turno"},{"codigo":"25-01263","titulo":"GABIARTE - FOLHA 001 GABIARTE CHAPADO PRETO - DIVERGENCIA DE MATERIAL","status":"Associada","situacao":"Fechada atrasada","data":"2025-08-07","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"GABIARTE","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"1002","turno":"1° Turno"},{"codigo":"25-01280","titulo":"CLARIANT - BALDE 20L UN - CHAPADO CINZA - OXIDAÇÃO NA ORELHA/ALÇA","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-08-11","ano":2025,"mes":8,"responsavel":"Marcello Dela Líbera","cliente":"CLARIANT","responsavel_causa":"Marcello Dela Líbera","motivo":"OXIDAÇÃO","qtd":"792","turno":"1° Turno"},{"codigo":"25-01282","titulo":"WEG - LT 004S 120 WEG - FISSURA NA TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-12","ano":2025,"mes":8,"responsavel":"Francisco Pedro Martell Cardenes Neto","cliente":"WEG","responsavel_causa":"Mayara Gonçalves","motivo":"CORTE/FISSURA","qtd":"30","turno":"1° Turno"},{"codigo":"25-01283","titulo":"TINSUL - LT 018 TINSUL SUPER PREMIUM DIAMOD - PADRÃO DE COR","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-12","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"TINSUL","responsavel_causa":"Marcos Schorr","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"142","turno":"2° Turno"},{"codigo":"25-01284","titulo":"PPG - LT 001S MAJESTIC SELADORA - MATERIAL DIVERGENTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-12","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PPG","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"2520","turno":"1° Turno"},{"codigo":"25-01297","titulo":"PORTAL PACK / RAO TECH - LT 05R -  AC/NA - AMASSAMENTO/AVARIAS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-13","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO, AVARIAS DE TRANSPORTE","qtd":"1024","turno":"2° Turno"},{"codigo":"25-01302","titulo":"PORTAL PACK - LT 1RL 175 CHAPADO BRANCO - AMASSAMENTO NA RECRAVAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-14","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Marcio da Rocha","motivo":"AMASSAMENTO","qtd":"1","turno":"1° Turno"},{"codigo":"25-01303","titulo":"BLASCOR - BD 18NT BLASCOR ULTRA PISO - FALTA DE ACESSÓRIOS","status":"Concluída","situacao":"Fechada no prazo","data":"2025-08-14","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"BLASCOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"244","turno":"1° Turno"},{"codigo":"25-01304","titulo":"PAUMAVE -  LT 99X135 PAUMAVE CN CREATINA - FALTA DE MATERIAL","status":"Concluída","situacao":"Fechada no prazo","data":"2025-08-14","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"134","turno":"2° Turno"},{"codigo":"25-01306","titulo":"PORTAL PACK - LT 1RL 175 ACAB/NATURAL - AMASSAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2025-08-14","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"15","turno":"2° Turno"},{"codigo":"25-01307","titulo":"REICHOLD - BD 20UR - REICHOLD AZUL UN - DEFORMAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-14","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"REICHOLD (POLITINT)","responsavel_causa":"Marcio da Rocha","motivo":"FECHAMENTO","qtd":"12","turno":"1° Turno"},{"codigo":"25-01342","titulo":"H TINTAS LT 018 UN - H TINTAS - AMASSAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-20","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PEREIRA HOLANDA","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"8","turno":"2° Turno"},{"codigo":"25-01356","titulo":"R3 QUÍMICA / IMA C - AE 52X166 - BUZINA DA ALEGRIA - VAZAMENTO PELA SOLDA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-21","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"IMA","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"1","turno":"1° Turno"},{"codigo":"25-01366","titulo":"RESICOLOR - LT 004S 120 RESIC ESMALTE AUTO - FALTA DE MATERIAL","status":"Concluída","situacao":"Fechada no prazo","data":"2025-08-26","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Willian Essig","motivo":"FALTA DE MATERIAL","qtd":"2.000","turno":"2° Turno"},{"codigo":"25-01368","titulo":"AP WINNER - AE 057X166 LIMPA CONTATO WORKER - AVARIA DE TRANSPORTE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-26","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"236","turno":"2° Turno"},{"codigo":"25-01370","titulo":"SHERWIN WILLIANS ( VALSPAR ) - BD 20UR - SHERWIN VALPAR - DIFICULDADE FECHAMENTO DA  CINTA","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-08-26","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"SHERWIN WILLIAMS","responsavel_causa":"","motivo":"FECHAMENTO","qtd":"20","turno":"1° Turno"},{"codigo":"25-01371","titulo":"AP WINNER - AE 057X166 SILICONE SPRAY SOLOCAR - DIVERGENCIA DE MATERIAL","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-27","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"1140","turno":"1° Turno"},{"codigo":"25-01373","titulo":"PORTAL PACK - LT 05R AC/NA FURO 24 REL - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-08-27","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"30","turno":"2° Turno"},{"codigo":"25-01374","titulo":"PORTAL PACK - AE 065X189 CHAPADO BRANCO - DIVERGENCIA DE QUANTIADE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-08-27","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"297","turno":"2° Turno"},{"codigo":"25-01377","titulo":"RESICOLOR - LT 018 RESIC SUPER ACRIL OURO PREMIUM - OXIDAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-27","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Rodrigo Maróstica","motivo":"OXIDAÇÃO","qtd":"NÃO INFORMADA","turno":"1° Turno"},{"codigo":"25-01379","titulo":"PPG - LT 001S PPG REKOL FOSCO - QUEDA DE ALÇA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-27","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PPG","responsavel_causa":"Marcio da Rocha","motivo":"QUEDA DE ALÇA/ORELHA","qtd":"17","turno":"1° Turno"},{"codigo":"25-01384","titulo":"JIMO - AE 057X206 PAFF MATA CUCARACHAS - LITOGRAFIA MANCHADA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-08-28","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Fernando Bazanella","motivo":"LITOGRAFIA MANCHADA","qtd":"19","turno":"1° Turno"},{"codigo":"25-01386","titulo":"PETROCAR - AE 052X137 LIMPA AR CONDICIONADO AIR - VAZAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2025-08-29","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"PETROCAR","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"3","turno":"1° Turno"},{"codigo":"25-01388","titulo":"FARBEN - LT 018NT FARBEN THINER 5000/6000 - VAZAMENTO","status":"Associada","situacao":"Fechada atrasada","data":"2025-08-29","ano":2025,"mes":8,"responsavel":"","cliente":"FARBEN","responsavel_causa":"","motivo":"VAZAMENTO","qtd":"518","turno":"1° Turno"},{"codigo":"25-01396","titulo":"SHERWIN WILLIAMS - BD 20UR SHERWIN VALSPAR ARGENTINA - ACONDICIONAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-08-29","ano":2025,"mes":8,"responsavel":"Vinicius Geraldo","cliente":"SHERWIN WILLIAMS","responsavel_causa":"Vinicius Geraldo","motivo":"ACONDICIONAMENTO","qtd":"4.320","turno":"1° Turno"},{"codigo":"25-01415","titulo":"KILLING - LT 001S 189 KILLING KISATECH EMPREMEAB - MATERIAL DIVERGENTE","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-01","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"372","turno":"2° Turno"},{"codigo":"25-01420","titulo":"IRIS - AE 057X206 EP/NA - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-09-02","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"IRIS","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"5","turno":"1° Turno"},{"codigo":"25-01443","titulo":"HI TECH- LT05  RETANGULAR HI TECH COLOSSOS -BP24 - LITOGRAFIA  DESCENTRALIZADO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-09-04","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"HI TECH","responsavel_causa":"Marcio da Rocha","motivo":"DESCENTRALIZAÇÃO","qtd":"18.000","turno":"1° Turno"},{"codigo":"25-01451","titulo":"DALEGRIA - AE 052X137 TINTA VERDE L002 - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-09-05","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"DALEGRIA","responsavel_causa":"","motivo":"VAZAMENTO","qtd":"7.200","turno":"2° Turno"},{"codigo":"25-01464","titulo":"ANJO - LT 073X072S ANJO CATALISADOR ESM PU - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-09","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Marcos Alencar Santos","motivo":"VAZAMENTO","qtd":"600","turno":"1° Turno"},{"codigo":"25-01471","titulo":"SHERWIN SUMARÉ - LT 018UN - NOVACOR RESINA- COMPONENTE DENTRO DA LATA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-09-09","ano":2025,"mes":9,"responsavel":"EDSON LIMA","cliente":"SHERWIN WILLIAMS","responsavel_causa":"Marcio da Rocha","motivo":"COMPONENTE/OBJETO DENTRO DA LATA","qtd":"1","turno":"1° Turno"},{"codigo":"25-01508","titulo":"DISAL - LT 1RL 175 SELLO ORO - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-09-15","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"DISAL","responsavel_causa":"Marcio da Rocha","motivo":"VAZAMENTO","qtd":"Não Informada","turno":"1° Turno"},{"codigo":"25-01523","titulo":"RESICOLOR - LT 004S 120 RESIC RESITREX VERNIZ - MISTURA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-16","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Marcio da Rocha","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"2088","turno":"1° Turno"},{"codigo":"25-01525","titulo":"AP WINNER - AE 057X166 SILICONE SPRAY SOLOCAR - MISTURA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-16","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Willian Essig","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"23","turno":"2° Turno"},{"codigo":"25-01558","titulo":"KILLING -LT 001S 189 KILLING KISACRIL FOSCO - DIVERGENCIA DE MATERIAL","status":"Concluída","situacao":"Fechada atrasada","data":"2025-09-19","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"1188","turno":"3° Turno"},{"codigo":"25-01566","titulo":"SNAP - AE 057X166 CAR LUB - MISTURA DE RÓTULO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-09-23","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"SNAP ON","responsavel_causa":"","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"1","turno":"1° Turno"},{"codigo":"25-01569","titulo":"RESICOLOR - LT 018 RESIC SUPER ACRI OURO PREM - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-24","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"3","turno":"2° Turno"},{"codigo":"25-01570","titulo":"RESICOLOR - LT 004S 120 RESIC RESITREX - BARBA DE LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-24","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Marcos Schorr","motivo":"LITOGRAFIA DESLOCADA","qtd":"4","turno":"2° Turno"},{"codigo":"25-01574","titulo":"H TINTAS - 018UN - H TINTAS  BP 57 - AMASSAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-09-24","ano":2025,"mes":9,"responsavel":"EDSON LIMA","cliente":"PEREIRA HOLANDA","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"4","turno":"1° Turno"},{"codigo":"25-01576","titulo":"H TINTAS LT 018 - H TINTAS BP57 - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-09-24","ano":2025,"mes":9,"responsavel":"Rodrigo Maróstica","cliente":"PEREIRA HOLANDA","responsavel_causa":"EDSON LIMA","motivo":"AMASSAMENTO","qtd":"3","turno":"1° Turno"},{"codigo":"25-01578","titulo":"RESICOLOR - LT 018UN TELHABRIL INCOLOR - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2025-09-25","ano":2025,"mes":9,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO","qtd":"5","turno":"2° Turno"},{"codigo":"25-01628","titulo":"KILLING - LT 004S KILLING KISACRIL ESMALTE - FALTA DE MATERIAL","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-10-03","ano":2025,"mes":10,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"500","turno":"1° Turno"},{"codigo":"25-01652","titulo":"DACAR - LT 001L 165X189 - VERNIZ PREMIUM - DIVERGENCIA DE MATERIAL","status":"Concluída","situacao":"Fechada atrasada","data":"2025-10-07","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"DACAR","responsavel_causa":"Marcio da Rocha","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"960","turno":"1° Turno"},{"codigo":"25-01667","titulo":"VALENTINI TINTAS - LT 5RT PROTECOR - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-10-09","ano":2025,"mes":10,"responsavel":"Vinicius Geraldo","cliente":"VALENTINI","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"26","turno":"2° Turno"},{"codigo":"25-01672","titulo":"FARBEN - LT 004S 120 - PRIMER PU HP - DIVERGÊNCIA DE MATERIAL","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-10-10","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"FARBEN","responsavel_causa":"","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"2.151","turno":"1° Turno"},{"codigo":"25-01677","titulo":"AP. WINNER - AE 057 057x166 - WURTH  LIMPA CONTAT MEXICO EP/NA - DIVERGÊNCIA DE MATERIAL","status":"Concluída","situacao":"Fechada no prazo","data":"2025-10-10","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"AP WINNER","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"826","turno":"3° Turno"},{"codigo":"25-01696","titulo":"PROCHEM - AE 052x220 - CHAPADO PRETO - OXIDAÇÃO","status":"Aberta","situacao":"No prazo","data":"2025-10-15","ano":2025,"mes":10,"responsavel":"Vinicius Geraldo","cliente":"PROCHEM","responsavel_causa":"Josué Erichsen","motivo":"OXIDAÇÃO","qtd":"28","turno":"1° Turno"},{"codigo":"25-01697","titulo":"RESICOLOR - LT 018 232x232x349 - RESIC SUPER COBERTURA EP/GF TP 170 - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2025-10-15","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"1","turno":"1° Turno"},{"codigo":"25-01701","titulo":"RESICOLOR - LT 018 232x232x349 - SUPER ACRIC OURO PREM EP/GF TP 170 - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2025-10-15","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"7","turno":"1° Turno"},{"codigo":"25-01731","titulo":"COOPER - LT 004 124 - ACAB/NA CONV (945ML) - FALTA DE MATERIAL","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-10-21","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"COOPER","responsavel_causa":"Amanda dos Santos","motivo":"FALTA DE MATERIAL","qtd":"1.534","turno":"2° Turno"},{"codigo":"25-01735","titulo":"PORTAL PACK - LT 05R AC/NA FURO 24 REL - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-10-21","ano":2025,"mes":10,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"30","turno":"2° Turno"},{"codigo":"25-01768","titulo":"RESICOLOR - LT 018 - SUPER ACRIL. OURO PREM EP/GF - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-10-27","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"3","turno":"1° Turno"},{"codigo":"25-01781","titulo":"RESICOLOR - LT 018 232X232X349 - RESIC EMBORRAC ORIGINAL OURO EP/GF - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-10-29","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"1","turno":"1° Turno"},{"codigo":"25-01782","titulo":"RESICOLOR - LT 018 232x232x349 - SUPER ACRIC OURO PREM EP/GF - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-10-29","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"2","turno":"1° Turno"},{"codigo":"25-01795","titulo":"TINSUL - LT 004 105X120 - EMBORRACHADA EP/GF PLUS - DIVERGÊNCIA NO PEDIDO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-10-30","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"TINSUL","responsavel_causa":"Vania Ines Selgen","motivo":"TAMPA SEM BATOQUE","qtd":"983","turno":"1° Turno"},{"codigo":"25-01796","titulo":"JIMO - AE 052X112 - JIMO PENETRIL EP/NA - LITOGRAFIA FORA DO PADRÃO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-10-30","ano":2025,"mes":10,"responsavel":"Amanda dos Santos","cliente":"JIMO","responsavel_causa":"Marcos Schorr","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"20.790","turno":"3° Turno"},{"codigo":"25-01798","titulo":"CROMUS - FUNDO 99 MM EP/EP - RECRAVAÇÃO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-10-30","ano":2025,"mes":10,"responsavel":"EDSON LIMA","cliente":"CROMUS","responsavel_causa":"Rodrigo Luksevicius Guedes De Paiva","motivo":"BICO NA RECRAVAÇÃO","qtd":"50.000","turno":"1° Turno"},{"codigo":"25-01802","titulo":"KILLING - BD 18UN 278X348 - INDUSTRIAL TP AC/NA HOMO - DIVERGÊNCIA NA IDENTIFICAÇÃO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-03","ano":2025,"mes":11,"responsavel":"Amanda dos Santos","cliente":"KILLING","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"0","turno":"1° Turno"},{"codigo":"25-01815","titulo":"JIMO - LT 5RT JIMO CUPIM MARROM - MISTURA DE RÓTULO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-04","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"16","turno":"3° Turno"},{"codigo":"25-01817","titulo":"PROHYGIENE - AE 065X100 PROHYGIENE - REVERSÃO DO FUNDO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-11-05","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"PROHYGIENE","responsavel_causa":"Josué Erichsen","motivo":"REVERSÃO","qtd":"16","turno":"1° Turno"},{"codigo":"25-01829","titulo":"RESICOLOR - LT 018 232X232X349 - RESIC ESMALTELIT EP/GF - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2025-11-06","ano":2025,"mes":11,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"4","turno":"2° Turno"},{"codigo":"25-01884","titulo":"TAPMATIC - LT05R QUIMAITC 11 - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-11-09","ano":2025,"mes":11,"responsavel":"Amanda dos Santos","cliente":"QUIMATIC TAPMATIC","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"52","turno":"1° Turno"},{"codigo":"25-01896","titulo":"JIMO - LT 001S JIMO PROTECOLOR - LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-11","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Fernando Bazanella","motivo":"LITOGRAFIA SEM RESISTÊNCIA","qtd":"NÃO INFORMADA","turno":"1° Turno"},{"codigo":"25-01924","titulo":"VEDACIT - BD 20UR VEDACIT NEUTROL - VAZAMENTO PELA ORELHA","status":"Concluída","situacao":"Fechada atrasada","data":"2025-11-12","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"OTTO BAUMGAR (VEDACIT)","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"2","turno":"2° Turno"},{"codigo":"25-01927","titulo":"AP WINNER - AE 057X166 VONDER PLUS - LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-13","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Luciano Gabriel","motivo":"FALHA NA LITOGRAFIA/ESMALTE/VERNIZ","qtd":"4","turno":"3° Turno"},{"codigo":"25-01931","titulo":"MARBOCOTE DO BRASIL - 1LTR - AC/NA - FECHAMENTO BP 24 REL","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-11-13","ano":2025,"mes":11,"responsavel":"Marcello Dela Líbera","cliente":"PORTAL PACK","responsavel_causa":"Marcello Dela Líbera","motivo":"FECHAMENTO","qtd":"0","turno":"1° Turno"},{"codigo":"25-01932","titulo":"PORTAL PACK - 5 LTR - AC/NA - AVARIAS/AMASSAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2025-11-13","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"AMASSAMENTO, AVARIAS DE TRANSPORTE","qtd":"43","turno":"2° Turno"},{"codigo":"25-01933","titulo":"DUVON REVESTIMENTOS - BD 20NT - DUVON REVESTIMENTOS - VAZAMENTO PELA SOLDA DA ORELHA","status":"Aberta","situacao":"No prazo","data":"2025-11-13","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"DUVON REVESTIMENTOS","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"1","turno":"2° Turno"},{"codigo":"25-01995","titulo":"BASTON - CHAPA DESOD. REEBOK COOL MASCULINO - LITOGRAFIA","status":"Aberta","situacao":"No prazo","data":"2025-11-24","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"BASTON","responsavel_causa":"André Marcelo Diehl","motivo":"LITOGRAFIA MANCHADA","qtd":"30","turno":"3° Turno"},{"codigo":"25-02004","titulo":"WEG - LT 004S 120 WEG - LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-24","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"WEG","responsavel_causa":"André Marcelo Diehl","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"NÃO INFORMADO","turno":"1° Turno"},{"codigo":"25-02005","titulo":"GABIARTE - FOLHA 001 GABIARTE PERINI - LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-24","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"GABIARTE","responsavel_causa":"Marcos Schorr","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"400","turno":"2° Turno"},{"codigo":"25-02008","titulo":"JIMO - LT 5RT JIMO CUPIM INCOLOR - VAZAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-11-26","ano":2025,"mes":11,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"299","turno":"2° Turno"},{"codigo":"25-02039","titulo":"PPG - TAMPA 4 105 EP/GF CONVENCIONAL - SEM FORMAÇÃO DE CURLING","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-01","ano":2025,"mes":12,"responsavel":"Caroline Ferreira","cliente":"PPG","responsavel_causa":"Caroline Ferreira","motivo":"ABA ABERTA","qtd":"8.060","turno":"2° Turno"},{"codigo":"25-02057","titulo":"ANJO - LT 018NT ANJO THINNER EP/NA - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-12-03","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"","motivo":"","qtd":"350","turno":"1° Turno"},{"codigo":"25-02060","titulo":"DALEGRIA - AE 052X166 TINTA BARBERSHOP - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-12-03","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"DALEGRIA","responsavel_causa":"","motivo":"","qtd":"5.000","turno":"2° Turno"},{"codigo":"25-02081","titulo":"PPG - TAMPA 4 105 EP/GF CONVENCIONAL - DIVERGENCIA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2025-12-10","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"PPG","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"8.400","turno":"2° Turno"},{"codigo":"25-02082","titulo":"PORTAL PACK - LT 05R CHAPADO BRANCO EP/NA - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2025-12-11","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"Patricia Viviane Althaus","motivo":"ACONDICIONAMENTO","qtd":"15","turno":"2° Turno"},{"codigo":"25-02083","titulo":"SOIN - AE 065X100 ODORIZADOR ROSAS DE AMSTERDAN - LITOGRAFIA FORA DO PADRÃO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-12-11","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"SOIN","responsavel_causa":"Luciano Gabriel","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"20.440","turno":"1° Turno"},{"codigo":"25-02090","titulo":"JIMO - AE 057X166 ACAROS E PULGAS EP/EP - DIVERGENCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-11","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"200","turno":"2° Turno"},{"codigo":"25-02092","titulo":"RESICOLOR - LATA 001HL RESICOLOR HIBRIDO ESMALTELIT - EP/GF PLUS - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-12-11","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"","motivo":"VAZAMENTO","qtd":"1","turno":"1° Turno"},{"codigo":"25-02094","titulo":"SNAP ON - AE 57X166 - CAR80 - VAZAMENTO PELO DOMO","status":"Concluída","situacao":"Fechada no prazo","data":"2025-12-12","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"SNAP ON","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"3","turno":"2° Turno"},{"codigo":"25-02110","titulo":"PAUMAVE - LT  99x135 PAUMAVE CN MOD PROT - DIVERGENCIA DE QUANTIDADE","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-15","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"240","turno":"1° Turno"},{"codigo":"25-02111","titulo":"ANJO - LT 004S 120 ANJO WAH PRIME P/FUNDO - LITOGRAFIA","status":"Concluída","situacao":"Fechada no prazo","data":"2025-12-15","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Luciano Gabriel","motivo":"LITOGRAFIA DESLOCADA","qtd":"7","turno":"3° Turno"},{"codigo":"25-02119","titulo":"TECHNEER - FOLHA CHAPADO BCO - SAN/OG - DIVERGÊNCIA NO REVESTIMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-15","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"TECHNEER","responsavel_causa":"Rodrigo Maróstica","motivo":"DIVERGÊNCIA DE ACABAMENTO/REVESTIMENTO","qtd":"1.523","turno":"Múltiplos Turnos"},{"codigo":"25-02121","titulo":"RESICOLOR - LATA 001HL RESICOLOR HIBRIDO ESMALTELIT - EP/GF PLUS - FALSA RECRAVAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-12-15","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"","motivo":"RECRAVAÇÃO","qtd":"1","turno":"1° Turno"},{"codigo":"25-02129","titulo":"RESICOLOR - LT 004S CHAPADO BRANCO EP/GF - DIVERGENCIA DE MATERIAL","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-17","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"RESICOLOR","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"2.100","turno":"2° Turno"},{"codigo":"25-02130","titulo":"DUVON - BD 20NT DUVON TINTAS E VERNIZES - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2025-12-17","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"DUVON REVESTIMENTOS","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"6","turno":"1° Turno"},{"codigo":"25-02131","titulo":"LINDT - LINDT NORDESTE DO BRASIL - FALTA DE MATERIAL","status":"Reprovada","situacao":"Fechada no prazo","data":"2025-12-17","ano":2025,"mes":12,"responsavel":"Vinicius Geraldo","cliente":"LINDT","responsavel_causa":"Vinicius Geraldo","motivo":"FALTA DE MATERIAL","qtd":"410","turno":"1° Turno"},{"codigo":"25-02147","titulo":"SOL TINTAS - LT 1RL BLASCOR  CATALIZADOR INT AUTO SEM BICO 24 REL - EP/NA - MISTURA DE RÓTULOS","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-18","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"SOL TINTAS","responsavel_causa":"Josué Erichsen","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"2.800","turno":"1° Turno"},{"codigo":"25-02178","titulo":"TAPMATIC - LT 0,5 LITRO RET QUIMATIC 11 - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-22","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"TAPMATIC","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"15","turno":"1° Turno"},{"codigo":"25-02179","titulo":"KONIG - TUBOS BACTROVERT 57X206MM - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2025-12-22","ano":2025,"mes":12,"responsavel":"Josué Erichsen","cliente":"KONIG","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"04","turno":"1° Turno"},{"codigo":"25-02182","titulo":"TECHNEER - FOLHA LAMINA TAMPA TECHNEER CHAP/VERDE PTY - FE/OG INTERNO - DESPLACAMENTO","status":"Aberta","situacao":"No prazo","data":"2025-12-26","ano":2025,"mes":12,"responsavel":"Amanda dos Santos","cliente":"TECHNEER","responsavel_causa":"André Marcelo Diehl","motivo":"DESPLACAMENTO","qtd":"525","turno":"2° Turno"},{"codigo":"26-00004","titulo":"PPG - LT 001S - PPG EXTRA ESM EP/GF CONV S/TP - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-06","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"PPG","responsavel_causa":"Caroline Ferreira","motivo":"VAZAMENTO","qtd":"6","turno":"3° Turno"},{"codigo":"26-00011","titulo":"RECKITT - AE 057X238 - RECKITT AC/EP DOMO - DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-07","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"RECKITT","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"0","turno":"3° Turno"},{"codigo":"26-00012","titulo":"AP WINNER - AE 057X166 - WD 40 REVISAO 4 AMI/NA - LITOGRAFIA FORA DO PADRÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-07","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"AP WINNER","responsavel_causa":"Marcos Schorr","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"168.000","turno":"2° Turno"},{"codigo":"26-00049","titulo":"JIMO - ANTI INSET 400 ML - AUSENCIA NO CERTIFICADO DE ANALISE","status":"Associada","situacao":"Fechada no prazo","data":"2026-01-09","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"JIMO","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"0","turno":"2° Turno"},{"codigo":"26-00057","titulo":"WEG - LATA 5L - OXIDAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-01-12","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"WEG","responsavel_causa":"Amanda dos Santos","motivo":"OXIDAÇÃO","qtd":"2","turno":"1° Turno"},{"codigo":"26-00060","titulo":"AP WINNER - TUBO 57X166 - DESCARB. PRO WURTH - ROTULOS MISTURADOS","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-13","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"AP WINNER","responsavel_causa":"Josué Erichsen","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"2","turno":"1° Turno"},{"codigo":"26-00064","titulo":"AP WINNER - AE 057X166 - DESCARBONIZANTE W MAX EP/NA - AVARIA DE TRANSPORTE","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-13","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"AP WINNER","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"378","turno":"2° Turno"},{"codigo":"26-00080","titulo":"ANJO - LT 5RT - ANJO THINNER EP/NA - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-01-13","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"ANJO","responsavel_causa":"Eduardo Boari","motivo":"VAZAMENTO","qtd":"158","turno":"3° Turno"},{"codigo":"26-00092","titulo":"NEW TINTAS - LT 001S 189 PRIMER ACRILICO - VAZAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-19","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"NEW TINTAS","responsavel_causa":"Caroline Ferreira","motivo":"VAZAMENTO","qtd":"7","turno":"3° Turno"},{"codigo":"26-00093","titulo":"MAAHSA - AE 57X166 CHAPADO BRANCO - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-01-19","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"MAAHSA","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"4460","turno":"2° Turno"},{"codigo":"26-00094","titulo":"FARBEN - LT 018NT FARBEN THINNER E DILUENTE EP/NA F42 - DIVERGENCIA NA FURAÇÃO","status":"Concluída","situacao":"Fechada atrasada","data":"2026-01-19","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA NA FURAÇÃO","qtd":"222","turno":"1° Turno"},{"codigo":"26-00137","titulo":"FALCÃO TINTAS - BD 18NT FALCÃO TINTAS TR - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-01-28","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"FALCÃO TINTAS","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"2","turno":"1° Turno"},{"codigo":"26-00139","titulo":"GABIARTE -  FOLHA - DESPLACAMENTO","status":"Concluída","situacao":"Fechada no prazo","data":"2026-01-28","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"GABIARTE","responsavel_causa":"Marcos Schorr","motivo":"DESPLACAMENTO","qtd":"1.000","turno":"2° Turno"},{"codigo":"26-00140","titulo":"TECHNEER - FOLHA - DIVERGENCIA DE QUANTIDADE","status":"Associada","situacao":"Fechada no prazo","data":"2026-01-28","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"TECHNEER","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"1.772","turno":"2° Turno"},{"codigo":"26-00141","titulo":"JIMO - AE 057X206 JIMO BOX E BANHEIRO  - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-01-28","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"11","turno":"3° Turno"},{"codigo":"26-00142","titulo":"SINTEPLAST - BP 24 - DIVERGÊNCIA DE QUANTIDADE","status":"Associada","situacao":"Fechada no prazo","data":"2026-01-28","ano":2026,"mes":1,"responsavel":"Vinicius Geraldo","cliente":"SINTEPLAST","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"2.000","turno":"1° Turno"},{"codigo":"26-00144","titulo":"BASTON - AE 057X206 - MULTI INSET PROINSET EP/EP - DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","status":"Associada","situacao":"Fechada no prazo","data":"2026-01-29","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"BASTON","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"Não se aplica.","turno":"1° Turno"},{"codigo":"26-00155","titulo":"PORTAL PACK - LT 5RT - CHAPADO BRANCO - AMASSAMENTO TRANSPORTE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-01-29","ano":2026,"mes":1,"responsavel":"","cliente":"PORTAL PACK","responsavel_causa":"","motivo":"AMASSAMENTO","qtd":"12","turno":"2° Turno"},{"codigo":"26-00158","titulo":"BORRACHAS VIPAL - BD 20 UN VIPAL TR AC/NA HOMO - FALTA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2026-01-30","ano":2026,"mes":1,"responsavel":"Amanda dos Santos","cliente":"BORRACHAS VIPAL","responsavel_causa":"Patricia Viviane Althaus","motivo":"FALTA DE MATERIAL","qtd":"1.056","turno":"1° Turno"},{"codigo":"26-00182","titulo":"KILLING - LT 18 LITROS - KISAFIX - AVARIA DE TRANSPORTE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-03","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"KILLING","responsavel_causa":"Amanda dos Santos","motivo":"AVARIAS DE TRANSPORTE","qtd":"2 informadas","turno":"1° Turno"},{"codigo":"26-00183","titulo":"BELCO -  LT 001 189 BELCO FACIL EP/EP CONV - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-03","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"BELCO","responsavel_causa":"Amanda dos Santos","motivo":"VAZAMENTO","qtd":"36","turno":"3° Turno"},{"codigo":"26-00184","titulo":"BASTON - AE 052X206 - PURO AR CHA BRANCO EP/EP - DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-03","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"BASTON","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"4","turno":"2° Turno"},{"codigo":"26-00187","titulo":"FARBEN - 5LRT - VAZAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-03","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"FARBEN","responsavel_causa":"Amanda dos Santos","motivo":"VAZAMENTO","qtd":"NAO INFORMADO","turno":"1° Turno"},{"codigo":"26-00205","titulo":"BASTON - CORPO AE 052X166 - DESENGRIPANTE BRIL LUB - LITOGRAFIA DESLOCADA","status":"Aberta","situacao":"No prazo","data":"2026-02-04","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"BASTON","responsavel_causa":"Luciano Gabriel","motivo":"LITOGRAFIA DESLOCADA","qtd":"708","turno":"1° Turno"},{"codigo":"26-00206","titulo":"BASTON - FOLHA 052X166 - DESENGRIPANTE CHEMICOLOR L - LITOGRAFIA DESLOCADA","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-04","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"BASTON","responsavel_causa":"Luciano Gabriel","motivo":"LITOGRAFIA DESLOCADA","qtd":"644","turno":"3° Turno"},{"codigo":"26-00211","titulo":"RESICOLOR - LT 004S 120 - RESIC RESITREX VERINZ PREM EP/GF PLUS - MISTURA DE ROTULOS","status":"Aberta","situacao":"No prazo","data":"2026-02-05","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Willian Essig","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"28","turno":"2° Turno"},{"codigo":"26-00218","titulo":"GRUPO SMI -  PRE0179- LACRE TIPO SETA AZUL - DIVERGENCIA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-05","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"GRUPO SMI","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"5.074","turno":"1° Turno"},{"codigo":"26-00220","titulo":"JIMO - AE 057X206 - JIMO CUPIM EP/NA DOMO - DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-06","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"JIMO","responsavel_causa":"Patricia Viviane Althaus","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"Não se aplica.","turno":"3° Turno"},{"codigo":"26-00221","titulo":"ANJO - LT 004S 120 ANJO ESM ER PLUS EP/NA CONV - DIVERGÊNCIA DE QUANTIDADE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-06","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"ANJO","responsavel_causa":"Amanda dos Santos","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"44","turno":"1° Turno"},{"codigo":"26-00229","titulo":"SINTEPLAST - LT 004S 133 - SATINEX 3 EN 1 EP/NA PLUS - DIVERGÊNCIA DE QUANTIDADE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-09","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"SINTEPLAST","responsavel_causa":"Amanda dos Santos","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"4.713","turno":"1° Turno"},{"codigo":"26-00233","titulo":"PPG - PPG MAJESTIC CLASSIC - LITOGRAFIA FORA DO PADRÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-09","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"PPG","responsavel_causa":"Vinicius Geraldo","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"0","turno":"2° Turno"},{"codigo":"26-00238","titulo":"RESICOLOR - LT 004 - RESICOLOR ESMALTE AUTO - VAZAMENTO TAMPA","status":"Concluída","situacao":"Fechada atrasada","data":"2026-02-11","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"RESICOLOR","responsavel_causa":"Rodrigo Luksevicius Guedes De Paiva","motivo":"VAZAMENTO","qtd":"150","turno":"1° Turno"},{"codigo":"26-00253","titulo":"FARBEN - GALÃO - MISTURA DE ROTULOS","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-13","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"NÃO INFORMADO","turno":"1° Turno"},{"codigo":"26-00254","titulo":"PAUMAVE - LT 99x135 PAUMAVE  - OXIDAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-13","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Vinicius Geraldo","motivo":"OXIDAÇÃO","qtd":"984","turno":"2° Turno"},{"codigo":"26-00265","titulo":"H TINTAS - 018UN - H TINTAS EP/NA BP 57 - AMASSAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-16","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"PEREIRA E HOLANDA","responsavel_causa":"","motivo":"AVARIAS DE TRANSPORTE","qtd":"4","turno":"1° Turno"},{"codigo":"26-00266","titulo":"AP WINNER - 052X112 ADIT BICOMB. INJ. CLEANER WURTH - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2026-02-18","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"134","turno":"2° Turno"},{"codigo":"26-00267","titulo":"PPG - LT 001S PPG EXTRA ESM - ANEL OVALISADO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-18","ano":2026,"mes":2,"responsavel":"","cliente":"PPG","responsavel_causa":"","motivo":"AMASSAMENTO","qtd":"13","turno":"1° Turno"},{"codigo":"26-00271","titulo":"FALCÃO TINTAS - BD NT FALÇÃO TINTA TR - OXIDAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-18","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"FALCÃO TINTAS","responsavel_causa":"Vinicius Geraldo","motivo":"OXIDAÇÃO","qtd":"1","turno":"1° Turno"},{"codigo":"26-00279","titulo":"AP WINNER - WURTH ROST OFF 20 ANOS - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-02-19","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"2","turno":"2° Turno"},{"codigo":"26-00282","titulo":"TECHNEER - FOLHA TAMPA TECHNEER XADREZ VERMELHO - DESPLACAMENTO","status":"Concluída","situacao":"Fechada atrasada","data":"2026-02-19","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"TECHNEER","responsavel_causa":"Marcos Schorr","motivo":"DESPLACAMENTO","qtd":"733","turno":"2° Turno"},{"codigo":"26-00283","titulo":"SOL TINTAS - LT 004S 120 BLASCOR BARNIZ PU - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-02-19","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"SOL TINTAS","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"10","turno":"1° Turno"},{"codigo":"26-00284","titulo":"PPG - TAMPA 004 105 CONVENCIONAP EP/GF - FECHAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-19","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"PPG","responsavel_causa":"Vinicius Geraldo","motivo":"FECHAMENTO","qtd":"4.000","turno":"2° Turno"},{"codigo":"26-00300","titulo":"DUVON REVESTIMENTOS - BD 20NT - DUVON TINTAS E VERNIZES - CONTAMINAÇÃO INTERNA DE ÓLEO","status":"Aberta","situacao":"No prazo","data":"2026-02-20","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"DUVON REVESTIMENTOS","responsavel_causa":"Willian Essig","motivo":"EXCESSO DE LUBRIFICANTE/PARAFINA","qtd":"264","turno":"2° Turno"},{"codigo":"26-00304","titulo":"ROBERLO - LT 127x75 MARMITA - ROBERLO PLUS LIGHT EXTRA 900G - TAMPA EMBLOCADAS/ EMPILHAMENTO IRREGULAR","status":"Concluída","situacao":"Fechada atrasada","data":"2026-02-20","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"ROBERLO","responsavel_causa":"Vinicius Geraldo","motivo":"ENROSCO NO DISPENSADOR","qtd":"17000","turno":"1° Turno"},{"codigo":"26-00335","titulo":"SOLVEN - BD 20NT - CHAPADO TP BCO/NA HOMO - FALTA DE MATERIAL","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-24","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"SOLVEN","responsavel_causa":"Amanda dos Santos","motivo":"FALTA DE MATERIAL","qtd":"528","turno":"1° Turno"},{"codigo":"26-00352","titulo":"ADEX - BD - AVARIA","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-26","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"ADEX","responsavel_causa":"Vinicius Geraldo","motivo":"AMASSAMENTO","qtd":"Não informado","turno":"2° Turno"},{"codigo":"26-00353","titulo":"SNAP ON - AE 057X166 CAR LUB EP/NA - AVARIA DE TRANSPORTE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-26","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"SNAP ON","responsavel_causa":"Vinicius Geraldo","motivo":"AVARIAS DE TRANSPORTE","qtd":"NÃO INFORMADA","turno":"2° Turno"},{"codigo":"26-00355","titulo":"ADHEFRAN - BD - COLAPSAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-02-26","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"ADHEFRAN","responsavel_causa":"Vinicius Geraldo","motivo":"COLAPSAMENTO","qtd":"7.930","turno":"2° Turno"},{"codigo":"26-00368","titulo":"SOL TINTAS - LT 004S 120 AC/NA - VAZAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-27","ano":2026,"mes":2,"responsavel":"Vinicius Geraldo","cliente":"SOL TINTAS","responsavel_causa":"Vinicius Geraldo","motivo":"VAZAMENTO","qtd":"36","turno":"2° Turno"},{"codigo":"26-00373","titulo":"SINTEPLAST - LT 1RL 175 SINTEPLAST - THINNER ORO EP/NA - DIVERGENCIA DE PESO","status":"Associada","situacao":"Fechada no prazo","data":"2026-02-27","ano":2026,"mes":2,"responsavel":"Amanda dos Santos","cliente":"SINTEPLAST","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE PESO","qtd":"Não se aplica.","turno":"2° Turno"},{"codigo":"26-00395","titulo":"BASTON - AE 052X166 - LIMPA AR - DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-03","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"BASTON","responsavel_causa":"Amanda dos Santos","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"2.970","turno":"2° Turno"},{"codigo":"26-00396","titulo":"VEDACIT - BD 20UR VEDACIT - DIVERGÊNCIA DE QUANTIDADE","status":"Aberta","situacao":"No prazo","data":"2026-03-03","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"VEDACIT","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"36","turno":"1° Turno"},{"codigo":"26-00399","titulo":"RECKITT - AE 057 057x238 - DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-04","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"RECKITT","responsavel_causa":"Amanda dos Santos","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"NÃO SE APLICA","turno":"2° Turno"},{"codigo":"26-00400","titulo":"KILLING - LT 004S 120 DIG KILLING KISACRIL - MISTURA DE RÓTULO","status":"Aberta","situacao":"No prazo","data":"2026-03-04","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"KILLING","responsavel_causa":"Josué Erichsen","motivo":"MISTURA DE RÓTULOS/EMBALAGENS","qtd":"26","turno":"1° Turno"},{"codigo":"26-00404","titulo":"TINSUL - LT 004S 120 TINSUL BORRACHA LIQUIDA - DIVERGENCIA DE QUANTIDADE","status":"Aberta","situacao":"No prazo","data":"2026-03-04","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"TINSUL","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"306","turno":"3° Turno"},{"codigo":"26-00405","titulo":"AP WINNER - AE 057X166 LIMPA CONTATOS WHURT REMOVEDOR - DIVERGENCIA DE QUANTIDADE","status":"Aberta","situacao":"No prazo","data":"2026-03-04","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"AP WINNER","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"760","turno":"2° Turno"},{"codigo":"26-00406","titulo":"AEROFLEX - AE 052X206 BRILHA BALÃO - DIVERGENCIA DE PEDIDO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-04","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"AEROFLEX","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"43.771","turno":"1° Turno"},{"codigo":"26-00407","titulo":"COMPONENTS - BD 20NT COMPONENTS TINTA INDUSTRIAL - FALTA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2026-03-04","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"COMPONENTS  IMP. E EXP.","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"2.139","turno":"2° Turno"},{"codigo":"26-00418","titulo":"SINTEPLAST - LT 4RT SINTEPLAST TRIMAS REFINISH - FALTA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2026-03-05","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"SINTEPLAST","responsavel_causa":"Vania Ines Selgen","motivo":"FALTA DE MATERIAL","qtd":"4078","turno":"2° Turno"},{"codigo":"26-00436","titulo":"TAPMATIC - LT05R QUIMATIC1- FURO 24- FURO ANEL FORA DE PADRÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-06","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"TAPMATIC","responsavel_causa":"Josué Erichsen","motivo":"DIMENSIONAL FORA DA ESPECIFICAÇÃO","qtd":"18","turno":"1° Turno"},{"codigo":"26-00445","titulo":"SAYERLACK - BD 20UR SAYERLACK TR - FALTA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2026-03-09","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"SAYERLACK","responsavel_causa":"Vania Ines Selgen","motivo":"FALTA DE MATERIAL","qtd":"7.368","turno":"1° Turno"},{"codigo":"26-00452","titulo":"ANJO - LT 5RT ANJO THINNER EP/NA F42 - VAZAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2026-03-10","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Caroline Ferreira","motivo":"VAZAMENTO","qtd":"2.217","turno":"1° Turno"},{"codigo":"26-00464","titulo":"JIMO - AE 057X206 JIMO CUPIM - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-03-12","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"3","turno":"2° Turno"},{"codigo":"26-00465","titulo":"JIMO - 057X206 JIMO LIMPA VIDROS - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-03-12","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"JIMO","responsavel_causa":"Willian Essig","motivo":"VAZAMENTO","qtd":"3","turno":"3° Turno"},{"codigo":"26-00478","titulo":"ANJO - LT 127X75 ANJO MASSA POLIESTER REVOLUTION - AVARAIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2026-03-16","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"ANJO","responsavel_causa":"Patricia Viviane Althaus","motivo":"AVARIAS DE TRANSPORTE","qtd":"86","turno":"2° Turno"},{"codigo":"26-00483","titulo":"TINSUL - LT 018 TINSUL BORRACHA - LOTES SEQUENCIAIS","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-17","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"TINSUL","responsavel_causa":"Amanda dos Santos","motivo":"AUSÊNCIA/DIVERGÊNCIA NO CERTIFICADO DE ANÁLISE","qtd":"NÃO SE APLICA","turno":"1° Turno"},{"codigo":"26-00499","titulo":"AP WINNER - AE 057X137 WD 40 - AMINA/NA DOMO - DIVERGENCIA NA IDENTIFICAÇÃO","status":"Aberta","situacao":"No prazo","data":"2026-03-17","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"AP WINNER","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"NÃO SE APLICA","turno":"1° Turno"},{"codigo":"26-00502","titulo":"SHERWIN WILLIANS - AE 065X158 COLORGIN USO GERAL - VAZAMENTO","status":"Associada","situacao":"Fechada no prazo","data":"2026-03-18","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"SHERWIN WILLIANS","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"VAZAMENTO","qtd":"10","turno":"3° Turno"},{"codigo":"26-00514","titulo":"AP WINNER - AE 057X166 WD 40 AMI/NA - FALHA NA LITOGRAFIA","status":"Aberta","situacao":"No prazo","data":"2026-03-19","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"AP WINNER","responsavel_causa":"Luciano Gabriel","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"75","turno":"1° Turno"},{"codigo":"26-00515","titulo":"H TINTAS - LT 18UN H TINTAS EP/NA BP57 FORA - COMPONENTE DENTRO DA LATA","status":"Aberta","situacao":"No prazo","data":"2026-03-19","ano":2026,"mes":3,"responsavel":"Amanda dos Santos","cliente":"PEREIRA E HOLANDA","responsavel_causa":"Willian Essig","motivo":"COMPONENTE/OBJETO DENTRO DA LATA","qtd":"1","turno":"2° Turno"},{"codigo":"26-00520","titulo":"OSCAR FLUES - LT 1 RL - LT1RL EP/NA / BP24MM - OXIDAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-20","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"OSCAR FLUES","responsavel_causa":"Vinicius Geraldo","motivo":"OXIDAÇÃO","qtd":"53","turno":"2° Turno"},{"codigo":"26-00521","titulo":"NOVA ERA - SUCATA - DIVERGENCIA DE MATERIAL","status":"Aberta","situacao":"No prazo","data":"2026-03-20","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"NOVA ERA","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"292","turno":"1° Turno"},{"codigo":"26-00523","titulo":"OSCAR FLUES - LT 1RL - LT1RL EP/NA - BP24MM - AVARIAS /AMASSAMENTO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-20","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"OSCAR FLUES","responsavel_causa":"Vinicius Geraldo","motivo":"AMASSAMENTO","qtd":"85","turno":"2° Turno"},{"codigo":"26-00532","titulo":"H TINTAS - LT018UN H TINTAS EP/NA - AVARIA DE TRANSPORTE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-03-23","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"PEREIRA E HOLANDA","responsavel_causa":"Vinicius Geraldo","motivo":"AVARIAS DE TRANSPORTE","qtd":"3","turno":"2° Turno"},{"codigo":"26-00567","titulo":"WEG - LT 001S 189 WEG DFA 301 EP/NA - DIVERGENCIA DE MATERIAL","status":"Aberta","situacao":"No prazo","data":"2026-03-31","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"WEG","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"480","turno":"2° Turno"},{"codigo":"26-00570","titulo":"VIPAL - BD 20UN VIPAL TP AC/NA - DIVERGENCIA DE QUANTIDADE","status":"Associada","situacao":"Fechada no prazo","data":"2026-03-31","ano":2026,"mes":3,"responsavel":"Vinicius Geraldo","cliente":"BORRACHAS VIPAL","responsavel_causa":"Patricia Viviane Althaus","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"24","turno":"2° Turno"},{"codigo":"26-00576","titulo":"PPG - LT 004S PPG REKOL SEMIBR EP/GF - DIVERGENCIA DE QUANTIDADE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-04-01","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"PPG","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"3.500","turno":"1° Turno"},{"codigo":"26-00594","titulo":"PPG - LT 004S - PPG REKOL SEMIBR EP/GF - EXCESSO DE VERNIZ","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-04-02","ano":2026,"mes":4,"responsavel":"Amanda dos Santos","cliente":"PPG","responsavel_causa":"Amanda dos Santos","motivo":"EXCESSO DE VERNIZ","qtd":"2","turno":"1° Turno"},{"codigo":"26-00601","titulo":"FARBEN - BD 18NT FARBEN AC/NA - VAZAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-04-06","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"6","turno":"1° Turno"},{"codigo":"26-00662","titulo":"WEG - BD 20UR WEG GHS TR AC/NA - FISSURA","status":"Aberta","situacao":"No prazo","data":"2026-04-10","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"WEG","responsavel_causa":"Willian Essig","motivo":"CORTE/FISSURA","qtd":"2","turno":"2° Turno"},{"codigo":"26-00675","titulo":"IDEAL - LT 18NT COLA IDEAL QIMICA (SELO MAR) - DIVERGENCIA NA CAPACIDADE VOLUMÉTRICA","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-04-14","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"IDEAL PRODUTOS QUÍMICOS","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA NA CAPACIDADE VOLUMÉTRICA","qtd":"3.150","turno":"1° Turno"},{"codigo":"26-00680","titulo":"KLINTEX - LT 099X100 AC/NA - FALTA DE MATERIAL","status":"Associada","situacao":"Fechada no prazo","data":"2026-04-14","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"KLINTEX","responsavel_causa":"Willian Essig","motivo":"FALTA DE MATERIAL","qtd":"3.146","turno":"2° Turno"},{"codigo":"26-00687","titulo":"SNAP ON - AE57 - CAR CONTATO - RETALHO PRESO NO DOMO","status":"Aberta","situacao":"No prazo","data":"2026-04-15","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"SNAP ON","responsavel_causa":"Willian Essig","motivo":"RETALHO","qtd":"1","turno":"2° Turno"},{"codigo":"26-00688","titulo":"SNAP ON - AE57 - CAR LUB - VAZAMENTO PELA SOLDA","status":"Aberta","situacao":"No prazo","data":"2026-04-15","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"SNAP ON","responsavel_causa":"Josué Erichsen","motivo":"VAZAMENTO","qtd":"2","turno":"1° Turno"},{"codigo":"26-00713","titulo":"PAUMAVE - LT 004 CREATINA - LITOGRAFIA RISCADA","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-04-22","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"PAUMAVE","responsavel_causa":"Vinicius Geraldo","motivo":"RISCOS","qtd":"2.000","turno":"2° Turno"},{"codigo":"26-00716","titulo":"WEG - LT 001S 189 WEG GHS EP/NA MICRO-FURO - FURAÇÃO DA TAMPA","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-04-22","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"WEG","responsavel_causa":"Vinicius Geraldo","motivo":"DIVERGÊNCIA NA FURAÇÃO","qtd":"0","turno":"1° Turno"},{"codigo":"26-00717","titulo":"BRASCOLA - LT018NT COLA BRASCOLA VERDE - AVARIA DE TRANSPORTE","status":"Aberta","situacao":"No prazo","data":"2026-04-22","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"BRASCOLA","responsavel_causa":"Vinicius Geraldo","motivo":"AVARIAS DE TRANSPORTE","qtd":"27","turno":"2° Turno"},{"codigo":"26-00723","titulo":"PORTALPACK / CONINCO TINTAS - LT001 - AC/GF -  PERFURAÇÃO NO CORPO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-04-23","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"PORTAL PACK","responsavel_causa":"","motivo":"FURO NO FOLHA","qtd":"2","turno":"1° Turno"},{"codigo":"26-00732","titulo":"FARBEN - LT 004S 120 FARBEN VERNIZ POLIU - DIVERGENCIA DE MATERIAL","status":"Aberta","situacao":"No prazo","data":"2026-04-27","ano":2026,"mes":4,"responsavel":"Vinicius Geraldo","cliente":"FARBEN","responsavel_causa":"Willian Essig","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"2160","turno":"2° Turno"},{"codigo":"26-00749","titulo":"PORTAL PACK - LT 1RL 175 ACAB/NATURAL - EP/NA - DIVERGÊNCIA DE QUANTIDADE","status":"Aberta","situacao":"Atrasada","data":"2026-04-29","ano":2026,"mes":4,"responsavel":"Amanda dos Santos","cliente":"PORTAL PACK","responsavel_causa":"Josué Erichsen","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"5","turno":"1° Turno"},{"codigo":"26-00784","titulo":"WEG - LT 001 - DIVERGENCIA DE MATERIAL","status":"Aberta","situacao":"No prazo","data":"2026-05-06","ano":2026,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"WEG","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA DE MATERIAL","qtd":"1.886","turno":"2° Turno"},{"codigo":"26-00789","titulo":"PPG - LT 004S PGG ESM DULIT - EP/GF - DIVERGÊNCIA NA IDENTIFICAÇÃO","status":"Aberta","situacao":"No prazo","data":"2026-05-06","ano":2026,"mes":5,"responsavel":"Amanda dos Santos","cliente":"PPG","responsavel_causa":"Vania Ines Selgen","motivo":"DIVERGÊNCIA NA IDENTIFICAÇÃO","qtd":"0","turno":"2° Turno"},{"codigo":"26-00830","titulo":"SINTEPLAST - LT 018 UN SINTEPLAST THINNER ORO - EP/NA - AVARIA DE TRANSPORTE","status":"Associada","situacao":"Fechada no prazo","data":"2026-05-07","ano":2026,"mes":5,"responsavel":"Amanda dos Santos","cliente":"SINTEPLAST","responsavel_causa":"Amanda dos Santos","motivo":"AVARIAS DE TRANSPORTE","qtd":"175","turno":"2° Turno"},{"codigo":"26-00849","titulo":"AEROFLEX - AE 052X112 LOCTITE - LITOGRAFIA FORA DO PADRÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-05-12","ano":2026,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"AEROFLEX","responsavel_causa":"Vinicius Geraldo","motivo":"LITOGRAFIA FORA DE PADRÃO","qtd":"9.971","turno":"2° Turno"},{"codigo":"26-00868","titulo":"PORTAL PACK - AE 052X112 CHAPADO BRANCO - EP/NA - SUJIDADE","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-05-14","ano":2026,"mes":5,"responsavel":"Amanda dos Santos","cliente":"PORTAL PACK","responsavel_causa":"Amanda dos Santos","motivo":"SUJIDADE","qtd":"24","turno":"1° Turno"},{"codigo":"26-00877","titulo":"SOLVEN - BD 20NT CHAPADO BCO - FALTA DE MATERIAL","status":"Aberta","situacao":"No prazo","data":"2026-05-18","ano":2026,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"SOLVEN","responsavel_causa":"Josué Erichsen","motivo":"FALTA DE MATERIAL","qtd":"518","turno":"1° Turno"},{"codigo":"26-00893","titulo":"QUIMIFIX - AE 065X189 ACAB/NA - DIVERGENCIA DE QUANTIDADE","status":"Aberta","situacao":"No prazo","data":"2026-05-19","ano":2026,"mes":5,"responsavel":"Vinicius Geraldo","cliente":"QUIMIFIX","responsavel_causa":"Julio Cesar de Pelegrin Fighera","motivo":"DIVERGÊNCIA DE QUANTIDADE","qtd":"391","turno":"3° Turno"},{"codigo":"26-00906","titulo":"EUROFARMA - LT 05R CRUZWALDINA EP/NA - DIMENSIONAL FORA DA ESPECIFICAÇÃO","status":"Reprovada","situacao":"Fechada no prazo","data":"2026-05-19","ano":2026,"mes":5,"responsavel":"Amanda dos Santos","cliente":"EUROFARMA","responsavel_causa":"Amanda dos Santos","motivo":"DIMENSIONAL FORA DA ESPECIFICAÇÃO","qtd":"47.548","turno":"3° Turno"},{"codigo":"26-00908","titulo":"SHERWIN WILLIAMS SUM - ANEL FECHO PARA BALDE - SUMARÉ INDUSTRIA - FECHAMENTO","status":"Aberta","situacao":"No prazo","data":"2026-05-20","ano":2026,"mes":5,"responsavel":"","cliente":"SHERWIN WILLIANS","responsavel_causa":"","motivo":"FECHAMENTO","qtd":"972","turno":"1° Turno"},{"codigo":"26-00909","titulo":"SAYERLACK - BD 20 UN - SAYERLACK INDUSTRIA - ANEL FECHO PARA BALDE -  FECHAMENTO","status":"Aberta","situacao":"","data":"2026-05-20","ano":2026,"mes":5,"responsavel":"","cliente":"SAYERLACK","responsavel_causa":"","motivo":"FECHAMENTO","qtd":"1072","turno":"1° Turno"},{"codigo":"26-00912","titulo":"SAYER LACK - BD 20UN SAYER LACK - BA/EP - SUJIDADE OLEO TAMPA","status":"Aberta","situacao":"No prazo","data":"2026-05-20","ano":2026,"mes":5,"responsavel":"Amanda dos Santos","cliente":"SAYERLACK","responsavel_causa":"Josué Erichsen","motivo":"SUJIDADE","qtd":"50","turno":"1° Turno"}];
+
+let DATA = [...RAW_DATA];
+let charts = {};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const MONTHS      = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function toYM(d)       { return d.ano * 100 + d.mes; }
+function parseYM(s)    { const [y,m]=s.split('-'); return parseInt(y)*100+parseInt(m); }
+function countBy(arr,key){ return arr.reduce((a,d)=>{ const k=d[key]||'N/I'; a[k]=(a[k]||0)+1; return a; },{}); }
+function topN(obj,n=10){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n); }
+function destroyChart(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+
+const BLUES = ['#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af','#1e3a8a','#172554','#93c5fd','#bfdbfe','#dbeafe'];
+const STATUS_COLORS = {'Concluída':'#22c55e','Reprovada':'#ef4444','Aberta':'#f59e0b','Associada':'#a78bfa','Cancelada':'#6b7280'};
+const STATUS_EXCLUIDOS = new Set(['Reprovada','Cancelada']);
+function validosGraf(arr){ return arr.filter(x=>!STATUS_EXCLUIDOS.has(x.status)); }
+
+// ── HELPERS DE SELECT MÚLTIPLO ───────────────────────────────────────────────
+function getMulti(id){
+  const s=document.getElementById(id);
+  return s?[...s.selectedOptions].map(o=>o.value):[];
+}
+function selecionarTodos(id){
+  const s=document.getElementById(id);
+  if(s)[...s.options].forEach(o=>o.selected=true);
+}
+function limparSelect(id){
+  const s=document.getElementById(id);
+  if(s)[...s.options].forEach(o=>o.selected=false);
+}
+
+// ── TOGGLE FILTRO ─────────────────────────────────────────────────────────────
+function toggleFiltro(){
+  const bar=document.getElementById('global-filter-bar');
+  const btn=document.getElementById('btn-toggle-filtro');
+  bar.classList.toggle('recolhido');
+  btn.textContent=bar.classList.contains('recolhido')?'⊞ Expandir Filtro':'⊟ Recolher Filtro';
+}
+
+// ── LEITURA DOS FILTROS GLOBAIS ───────────────────────────────────────────────
+function getFilters(){
+  return {
+    from    : document.getElementById('f-from').value,
+    to      : document.getElementById('f-to').value,
+    statuses: getMulti('f-status'),
+    turnos  : getMulti('f-turno'),
+    clientes: getMulti('f-cliente'),
+    motivos : getMulti('f-motivo'),
+    resps   : getMulti('f-resp'),
+  };
+}
+function applyFilters(f){
+  const from=parseYM(f.from), to=parseYM(f.to);
+  return DATA.filter(x=>{
+    if(!x.data) return false;
+    const ym=toYM(x);
+    if(ym<from||ym>to)                                     return false;
+    if(f.statuses.length&&!f.statuses.includes(x.status))  return false;
+    if(f.turnos.length  &&!f.turnos.includes(x.turno))     return false;
+    if(f.clientes.length&&!f.clientes.includes(x.cliente)) return false;
+    if(f.motivos.length &&!f.motivos.includes(x.motivo))   return false;
+    if(f.resps&&f.resps.length&&!f.resps.includes(x.responsavel_causa)) return false;
+    return true;
+  });
+}
+
+// ── POPULATE SELECTS ──────────────────────────────────────────────────────────
+function populateSelects(){
+  const turnos  =[...new Set(DATA.map(d=>d.turno).filter(Boolean))].sort();
+  const resps   =[...new Set(DATA.map(d=>d.responsavel_causa).filter(Boolean))].sort();
+  const motivos =[...new Set(DATA.map(d=>d.motivo).filter(Boolean))].sort();
+  const status  =[...new Set(DATA.map(d=>d.status).filter(Boolean))].sort();
+  const clientes=[...new Set(DATA.map(d=>d.cliente).filter(Boolean))].sort();
+  const opt=v=>`<option value="${v}">${v}</option>`;
+  document.getElementById('f-status').innerHTML =status.map(opt).join('');
+  document.getElementById('f-turno').innerHTML  =turnos.map(opt).join('');
+  document.getElementById('f-cliente').innerHTML=clientes.map(opt).join('');
+  document.getElementById('f-motivo').innerHTML =motivos.map(opt).join('');
+  document.getElementById('f-resp').innerHTML   =resps.map(opt).join('');
+}
+
+// ── LIMPAR FILTROS ────────────────────────────────────────────────────────────
+function limparFiltros(){
+  ['f-status','f-turno','f-cliente','f-motivo','f-resp'].forEach(id=>limparSelect(id));
+  renderAtivo();
+}
+
+// ── TAB SWITCH ────────────────────────────────────────────────────────────────
+let abaAtiva='periodo';
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  abaAtiva=tab;
+  // Barra global: oculta na Visão Geral
+  document.getElementById('global-filter-bar').style.display =
+    tab==='visao' ? 'none' : '';
+  // Seletores de intervalo de comparação: apenas na aba Comparação
+  const cm=document.getElementById('comp-months');
+  cm.style.display=tab==='comparacao'?'flex':'none';
+  renderAtivo();
+}
+function aplicarFiltros(){ renderAtivo(); }
+function renderAtivo(){
+  if(abaAtiva==='visao'){ window._visaoDirty=false; renderVisao(); }
+  if(abaAtiva==='periodo')    renderPeriodo();
+  if(abaAtiva==='comparacao') renderComparacao();
+  if(abaAtiva==='responsavel')renderResponsavel();
+  if(abaAtiva==='registros')  renderTabela();
+}
+
+// ── VISÃO GERAL (base completa, sem filtros) ──────────────────────────────────
+function renderVisao(){
+  const d=RAW_DATA;
+  const total=d.length;
+
+  // ── ATRASOS — sempre da base completa, sem filtros ─────────────────────────
+  function diasEmAbertoV(dataStr){
+    if(!dataStr) return 0;
+    const dt=new Date(dataStr+'T00:00:00');
+    const hoje=new Date(); hoje.setHours(0,0,0,0);
+    return Math.floor((hoje-dt)/86400000);
+  }
+  function diasBadgeV(dias){
+    const cls=dias>90?'dias-critico':dias>30?'dias-alto':'dias-medio';
+    return '<span class="dias-badge '+cls+'">'+dias+'d</span>';
+  }
+  function statusColorV(s){
+    return s==='Aberta'?'var(--amber)':s==='Associada'?'var(--purple)':'var(--text2)';
+  }
+
+  const emAtraso=d.filter(x=>
+    (x.status==='Aberta'||x.status==='Associada') && x.situacao==='Atrasada'
+  ).map(x=>({...x,dias:diasEmAbertoV(x.data)})).sort((a,b)=>b.dias-a.dias);
+
+
+  let atrasoHtml='';
+
+  if(emAtraso.length>0){
+    atrasoHtml+=`
+    <div class="table-card" style="border:1px solid rgba(239,68,68,.35);margin-bottom:14px;">
+      <div class="table-header" style="background:rgba(239,68,68,.08);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="pulse" style="font-size:16px;">🔴</span>
+          <span class="table-title" style="color:#ef4444;">RNCs em Atraso Oficial</span>
+          <span class="atraso-badge">${emAtraso.length} ocorrência${emAtraso.length>1?'s':''}</span>
+        </div>
+        <span style="font-size:10px;color:var(--text3);font-family:var(--mono);">situação = Atrasada · base completa · sem filtros</span>
+      </div>
+      <div class="table-wrap">
+        <table class="atraso-table">
+          <thead><tr>
+            <th>Código</th><th>Data Emissão</th><th>Tempo em Aberto</th>
+            <th>Responsável Análise de Causa</th><th>Motivo</th><th>Cliente</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            ${emAtraso.map(r=>`<tr>
+              <td><span style="font-family:var(--mono);font-size:11px;color:var(--accent2)">${r.codigo}</span></td>
+              <td style="font-family:var(--mono);font-size:11px;">${r.data}</td>
+              <td>${diasBadgeV(r.dias)}</td>
+              <td><strong style="color:var(--text)">${r.responsavel_causa||'<span style="color:var(--red)">Não atribuído</span>'}</strong></td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${r.motivo}">${r.motivo||'—'}</td>
+              <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;" title="${r.cliente}">${(r.cliente||'—').slice(0,18)}</td>
+              <td><span style="font-size:11px;font-weight:600;color:${statusColorV(r.status)}">${r.status}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  if(!emAtraso.length){
+    atrasoHtml='<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:10px;"><span style="font-size:18px;">✅</span><span style="font-size:13px;color:var(--green);font-weight:500;">Nenhuma RNC em atraso na base atual.</span></div>';
+  }
+
+  document.getElementById('visao-atrasos-section').innerHTML=atrasoHtml;
+  // ── FIM ATRASOS ─────────────────────────────────────────────────────────────
+
+  const abertas   =d.filter(x=>x.status==='Aberta').length;
+  const concluidas=d.filter(x=>x.status==='Concluída').length;
+  const associadas=d.filter(x=>x.status==='Associada').length;
+  const reprovadas=d.filter(x=>x.status==='Reprovada').length;
+  const canceladas=d.filter(x=>x.status==='Cancelada').length;
+  const validas   =abertas+concluidas+associadas;
+
+  document.getElementById('visao-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Total na Base</div><div class="kpi-value blue">${total}</div><div class="kpi-sub">todos os registros</div></div>
+    <div class="kpi-card"><div class="kpi-label">Válidas</div><div class="kpi-value green">${validas}</div><div class="kpi-sub">abertas + concluídas + associadas</div></div>
+    <div class="kpi-card"><div class="kpi-label">Abertas</div><div class="kpi-value amber">${abertas}</div><div class="kpi-sub">${total?Math.round(abertas/total*100):0}% do total</div></div>
+    <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-value green">${concluidas}</div><div class="kpi-sub">${total?Math.round(concluidas/total*100):0}% do total</div></div>
+    <div class="kpi-card"><div class="kpi-label">Reprovadas</div><div class="kpi-value red">${reprovadas}</div><div class="kpi-sub">${total?Math.round(reprovadas/total*100):0}% do total</div></div>
+    <div class="kpi-card"><div class="kpi-label">Canceladas</div><div class="kpi-value" style="color:var(--text2)">${canceladas}</div><div class="kpi-sub">${total?Math.round(canceladas/total*100):0}% do total</div></div>`;
+
+  destroyChart('visao-pizza-situacao');
+  charts['visao-pizza-situacao']=new Chart(document.getElementById('visao-pizza-situacao'),{
+    type:'pie',
+    data:{labels:['Aberta','Concluída','Associada','Reprovada','Cancelada'],
+      datasets:[{data:[abertas,concluidas,associadas,reprovadas,canceladas],
+        backgroundColor:['#f59e0b','#22c55e','#a78bfa','#ef4444','#6b7280'],borderWidth:2,borderColor:'#181c27'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:'#8892a8',font:{size:11},boxWidth:14,padding:10}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed} (${Math.round(c.parsed/total*100)}%)`}}}}
+  });
+
+  const invalidas=reprovadas+canceladas;
+  destroyChart('visao-pizza-validas');
+  charts['visao-pizza-validas']=new Chart(document.getElementById('visao-pizza-validas'),{
+    type:'pie',
+    data:{labels:['Válidas','Reprovadas+Canceladas'],
+      datasets:[{data:[validas,invalidas],backgroundColor:['#22c55e','#ef4444'],borderWidth:2,borderColor:'#181c27'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:'#8892a8',font:{size:11},boxWidth:14,padding:10}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed} (${Math.round(c.parsed/total*100)}%)`}}}}
+  });
+
+  const dVT=validosGraf(d);
+  const byTurno=countBy(dVT.filter(x=>x.turno),'turno');
+  destroyChart('visao-pizza-turno');
+  charts['visao-pizza-turno']=new Chart(document.getElementById('visao-pizza-turno'),{
+    type:'pie',
+    data:{labels:Object.keys(byTurno),datasets:[{data:Object.values(byTurno),
+      backgroundColor:['#3b82f6','#22c55e','#f59e0b','#a78bfa','#6b7280'],borderWidth:2,borderColor:'#181c27'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:'#8892a8',font:{size:11},boxWidth:14,padding:10}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed} (${Math.round(c.parsed/total*100)}%)`}}}}
+  });
+
+  const byMonth={};
+  d.forEach(x=>{if(!x.data)return; const k=x.ano+'-'+String(x.mes).padStart(2,'0'); byMonth[k]=(byMonth[k]||0)+1;});
+  const sortedM=Object.keys(byMonth).sort();
+  destroyChart('visao-mensal');
+  charts['visao-mensal']=new Chart(document.getElementById('visao-mensal'),{
+    type:'bar',
+    data:{labels:sortedM.map(k=>{const[y,m]=k.split('-');return MONTHS[+m-1]+'/'+y;}),
+      datasets:[{label:'Total',data:sortedM.map(k=>byMonth[k]),backgroundColor:'#3b82f6',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10},autoSkip:false,maxRotation:45}},
+              y:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}}}}
+  });
+
+  const dV=validosGraf(d);
+  const topM=topN(countBy(dV.filter(x=>x.motivo),'motivo'),10);
+  destroyChart('visao-motivos');
+  charts['visao-motivos']=new Chart(document.getElementById('visao-motivos'),{
+    type:'bar',indexAxis:'y',
+    data:{labels:topM.map(([k])=>k.length>26?k.slice(0,26)+'…':k),
+      datasets:[{data:topM.map(([,v])=>v),backgroundColor:BLUES.slice(0,topM.length),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#e8ecf4',font:{size:10}}}}}
+  });
+
+  const topC=topN(countBy(dV.filter(x=>x.cliente),'cliente'),10);
+  destroyChart('visao-clientes');
+  charts['visao-clientes']=new Chart(document.getElementById('visao-clientes'),{
+    type:'bar',indexAxis:'y',
+    data:{labels:topC.map(([k])=>k.length>18?k.slice(0,18)+'…':k),
+      datasets:[{data:topC.map(([,v])=>v),backgroundColor:'#14b8a6',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#e8ecf4',font:{size:10}}}}}
+  });
+}
+
+// ── PERÍODO ───────────────────────────────────────────────────────────────────
+function renderPeriodo(){
+  const f=getFilters();
+  const d=applyFilters(f);
+  const hasStatusFilter=f.statuses.length>0;
+  const dG=hasStatusFilter?d:validosGraf(d);
+
+  const abertas   =d.filter(x=>x.status==='Aberta').length;
+  const concluidas=d.filter(x=>x.status==='Concluída').length;
+  const reprovadas=d.filter(x=>x.status==='Reprovada').length;
+  const canceladas=d.filter(x=>x.status==='Cancelada').length;
+  const uResps   =new Set(dG.map(x=>x.responsavel_causa).filter(Boolean)).size;
+  const uMotivos =new Set(dG.map(x=>x.motivo).filter(Boolean)).size;
+
+  document.getElementById('periodo-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Total RNCs</div><div class="kpi-value blue">${d.length}</div><div class="kpi-sub">todas as ocorrências</div></div>
+    <div class="kpi-card"><div class="kpi-label">Em Aberto</div><div class="kpi-value amber">${abertas}</div><div class="kpi-sub">${d.length?Math.round(abertas/d.length*100):0}% do total</div></div>
+    <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-value green">${concluidas}</div><div class="kpi-sub">${d.length?Math.round(concluidas/d.length*100):0}% do total</div></div>
+    <div class="kpi-card"><div class="kpi-label">Reprovadas</div><div class="kpi-value red">${reprovadas}</div><div class="kpi-sub">${canceladas} canceladas</div></div>
+    <div class="kpi-card"><div class="kpi-label">Responsáveis</div><div class="kpi-value purple">${uResps}</div><div class="kpi-sub">em ocorrências válidas</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tipos de Motivo</div><div class="kpi-value" style="color:var(--teal)">${uMotivos}</div><div class="kpi-sub">em ocorrências válidas</div></div>`;
+
+  const byMonth={};
+  dG.forEach(x=>{const k=x.ano+'-'+String(x.mes).padStart(2,'0');byMonth[k]=(byMonth[k]||0)+1;});
+  const sortedM=Object.keys(byMonth).sort();
+  destroyChart('chart-mensal');
+  charts['chart-mensal']=new Chart(document.getElementById('chart-mensal'),{
+    type:'bar',
+    data:{labels:sortedM.map(k=>{const[y,m]=k.split('-');return MONTHS[+m-1]+'/'+y;}),
+      datasets:[{label:'Reclamações',data:sortedM.map(k=>byMonth[k]),backgroundColor:'#3b82f6',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10},autoSkip:false,maxRotation:45}},
+              y:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}}}}
+  });
+
+  const top=topN(countBy(dG.filter(x=>x.motivo),'motivo'),10);
+  destroyChart('chart-motivos');
+  charts['chart-motivos']=new Chart(document.getElementById('chart-motivos'),{
+    type:'bar',
+    data:{labels:top.map(([k])=>k.length>28?k.slice(0,28)+'…':k),
+      datasets:[{data:top.map(([,v])=>v),backgroundColor:BLUES.slice(0,top.length),borderRadius:3}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#e8ecf4',font:{size:10}}}}}
+  });
+
+  const byTurno=countBy(dG.filter(x=>x.turno),'turno');
+  destroyChart('chart-turnos');
+  charts['chart-turnos']=new Chart(document.getElementById('chart-turnos'),{
+    type:'doughnut',
+    data:{labels:Object.keys(byTurno),datasets:[{data:Object.values(byTurno),
+      backgroundColor:['#3b82f6','#22c55e','#f59e0b','#a78bfa','#ef4444'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{legend:{position:'right',labels:{color:'#8892a8',font:{size:11},boxWidth:12}}}}
+  });
+
+  const byStatus=countBy(d,'status');
+  destroyChart('chart-status');
+  charts['chart-status']=new Chart(document.getElementById('chart-status'),{
+    type:'doughnut',
+    data:{labels:Object.keys(byStatus),datasets:[{data:Object.values(byStatus),
+      backgroundColor:Object.keys(byStatus).map(k=>STATUS_COLORS[k]||'#6b7280'),borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{legend:{position:'right',labels:{color:'#8892a8',font:{size:11},boxWidth:12}}}}
+  });
+
+  const topC=topN(countBy(dG.filter(x=>x.cliente),'cliente'),10);
+  destroyChart('chart-clientes');
+  charts['chart-clientes']=new Chart(document.getElementById('chart-clientes'),{
+    type:'bar',indexAxis:'y',
+    data:{labels:topC.map(([k])=>k.length>20?k.slice(0,20)+'…':k),
+      datasets:[{data:topC.map(([,v])=>v),backgroundColor:'#14b8a6',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#e8ecf4',font:{size:10}}}}}
+  });
+}
+
+// ── COMPARAÇÃO (intervalos múltiplos, apenas válidas) ─────────────────────────
+function getIntervalData(fromId, toId){
+  const from=parseYM(document.getElementById(fromId).value);
+  const to  =parseYM(document.getElementById(toId).value);
+  const f   =getFilters();
+  // Filtrar pelo intervalo de meses e pelos filtros globais (exceto período do filtro global)
+  return DATA.filter(x=>{
+    if(!x.data) return false;
+    const ym=toYM(x);
+    if(ym<from||ym>to)                                     return false;
+    if(f.statuses.length&&!f.statuses.includes(x.status))  return false;
+    if(f.turnos.length  &&!f.turnos.includes(x.turno))     return false;
+    if(f.clientes.length&&!f.clientes.includes(x.cliente)) return false;
+    if(f.motivos.length &&!f.motivos.includes(x.motivo))   return false;
+    if(f.resps&&f.resps.length&&!f.resps.includes(x.responsavel_causa)) return false;
+    return true;
+  });
+}
+
+function fmtYM2(ym){ const y=Math.floor(ym/100),m=ym%100; return MONTHS[m-1]+'/'+y; }
+
+function renderComparacao(){
+  const aFrom=document.getElementById('c-a-from').value;
+  const aTo  =document.getElementById('c-a-to').value;
+  const bFrom=document.getElementById('c-b-from').value;
+  const bTo  =document.getElementById('c-b-to').value;
+
+  // Apenas válidas (exclui reprovadas e canceladas)
+  const dA=validosGraf(getIntervalData('c-a-from','c-a-to'));
+  const dB=validosGraf(getIntervalData('c-b-from','c-b-to'));
+
+  const labelA=`${fmtYM2(parseYM(aFrom))}–${fmtYM2(parseYM(aTo))}`;
+  const labelB=`${fmtYM2(parseYM(bFrom))}–${fmtYM2(parseYM(bTo))}`;
+
+  const mA=countBy(dA.filter(x=>x.motivo),'motivo'), mB=countBy(dB.filter(x=>x.motivo),'motivo');
+  const tA=countBy(dA.filter(x=>x.turno),'turno'),   tB=countBy(dB.filter(x=>x.turno),'turno');
+  const stA=countBy(dA,'status'), stB=countBy(dB,'status');
+  const allM=[...new Set([...Object.keys(mA),...Object.keys(mB)])].sort();
+  const allT=['1° Turno','2° Turno','3° Turno','Múltiplos Turnos','Não Informado'];
+
+  const delta=(a,b)=>{const d=b-a;if(d===0)return'<span class="delta-zero">→</span>';
+    return d>0?`<span class="delta-positive">▲${d}</span>`:`<span class="delta-negative">▼${Math.abs(d)}</span>`;};
+
+  // Mensal por intervalo — agrupa por número do mês (1..12) para comparar lado a lado
+  function byMonthNum(arr){
+    const m={};
+    arr.forEach(x=>{if(x.mes) m[x.mes]=(m[x.mes]||0)+1;});
+    return m;
+  }
+  const mbyA=byMonthNum(dA), mbyB=byMonthNum(dB);
+  // Meses presentes em qualquer dos dois intervalos, ordenados 1..12
+  const allMonthNums=[...new Set([...Object.keys(mbyA).map(Number),...Object.keys(mbyB).map(Number)])].sort((a,b)=>a-b);
+
+  document.getElementById('comp-content').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div class="kpi-card" style="border-left:3px solid #3b82f6;">
+        <div class="kpi-label">Intervalo A — ${labelA}</div>
+        <div class="kpi-value blue">${dA.length}</div><div class="kpi-sub">ocorrências válidas</div>
+      </div>
+      <div class="kpi-card" style="border-left:3px solid #a78bfa;">
+        <div class="kpi-label">Intervalo B — ${labelB}</div>
+        <div class="kpi-value purple">${dB.length}</div>
+        <div class="kpi-sub">ocorrências válidas · ${delta(dA.length,dB.length)}</div>
+      </div>
+      <div class="kpi-card" style="border-left:3px solid #22c55e;">
+        <div class="kpi-label">Motivos distintos A</div>
+        <div class="kpi-value green">${Object.keys(mA).length}</div><div class="kpi-sub">tipos de motivo</div>
+      </div>
+      <div class="kpi-card" style="border-left:3px solid #f59e0b;">
+        <div class="kpi-label">Motivos distintos B</div>
+        <div class="kpi-value amber">${Object.keys(mB).length}</div>
+        <div class="kpi-sub">tipos de motivo · ${delta(Object.keys(mA).length,Object.keys(mB).length)}</div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card full-width">
+        <div class="chart-title">Evolução mensal — Intervalo A (${labelA}) vs B (${labelB}) · válidas</div>
+        <div style="position:relative;height:220px;"><canvas id="comp-mensal-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top Motivos — A vs B · válidas</div>
+        <div style="position:relative;height:300px;"><canvas id="comp-motivos-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Por Turno — A vs B · válidas</div>
+        <div style="position:relative;height:220px;"><canvas id="comp-turnos-chart"></canvas></div>
+        <table class="delta-table" style="margin-top:12px;">
+          <thead><tr><td>Turno</td><td style="text-align:right">${labelA}</td><td style="text-align:right">${labelB}</td><td style="text-align:right">Δ</td></tr></thead>
+          <tbody>${allT.filter(t=>tA[t]||tB[t]).map(t=>`<tr><td>${t}</td><td>${tA[t]||0}</td><td>${tB[t]||0}</td><td>${delta(tA[t]||0,tB[t]||0)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-top:14px;">
+      <div class="chart-title">Tabela completa de motivos — A vs B · válidas</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Motivo</th><th style="text-align:right">${labelA}</th><th style="text-align:right">${labelB}</th><th style="text-align:right">Variação</th></tr></thead>
+        <tbody>${allM.filter(m=>mA[m]||mB[m]).sort((x,y)=>(mB[y]||0)-(mA[y]||0)).map(m=>`
+          <tr><td>${m}</td>
+          <td style="text-align:right;font-family:var(--mono)">${mA[m]||0}</td>
+          <td style="text-align:right;font-family:var(--mono)">${mB[m]||0}</td>
+          <td style="text-align:right">${delta(mA[m]||0,mB[m]||0)}</td></tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+
+  // Gráfico evolução mensal — barras lado a lado por mês (Jan A | Jan B · Fev A | Fev B ...)
+  const [aFromY] = document.getElementById('c-a-from').value.split('-');
+  const [bFromY] = document.getElementById('c-b-from').value.split('-');
+  destroyChart('comp-mensal-chart');
+  charts['comp-mensal-chart']=new Chart(document.getElementById('comp-mensal-chart'),{
+    type:'bar',
+    data:{
+      labels: allMonthNums.map(n=>MONTHS[n-1]),
+      datasets:[
+        {
+          label: 'Intervalo A (' + labelA + ')',
+          data: allMonthNums.map(n=>mbyA[n]||0),
+          backgroundColor:'#3b82f6',
+          borderRadius:3,
+          barPercentage:0.45,
+          categoryPercentage:0.85
+        },
+        {
+          label: 'Intervalo B (' + labelB + ')',
+          data: allMonthNums.map(n=>mbyB[n]||0),
+          backgroundColor:'#a78bfa',
+          borderRadius:3,
+          barPercentage:0.45,
+          categoryPercentage:0.85
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#8892a8',font:{size:11},boxWidth:12}},
+        tooltip:{
+          callbacks:{
+            title: items => MONTHS[allMonthNums[items[0].dataIndex]-1],
+            label: item => ' ' + item.dataset.label + ': ' + item.parsed.y
+          }
+        }
+      },
+      scales:{
+        x:{
+          ticks:{color:'#e8ecf4',font:{size:11},autoSkip:false},
+          grid:{display:false}
+        },
+        y:{
+          ticks:{color:'#8892a8',font:{size:10}},
+          grid:{color:'rgba(255,255,255,0.05)'},
+          beginAtZero:true
+        }
+      }
+    }
+  });
+
+  const top5=allM.filter(m=>(mA[m]||0)+(mB[m]||0)>0)
+    .sort((x,y)=>((mB[y]||0)+(mA[y]||0))-((mA[x]||0)+(mB[x]||0))).slice(0,10);
+  destroyChart('comp-motivos-chart');
+  charts['comp-motivos-chart']=new Chart(document.getElementById('comp-motivos-chart'),{
+    type:'bar',
+    data:{labels:top5.map(m=>m.length>24?m.slice(0,24)+'…':m),
+      datasets:[{label:labelA,data:top5.map(m=>mA[m]||0),backgroundColor:'#3b82f6',borderRadius:3},
+                {label:labelB,data:top5.map(m=>mB[m]||0),backgroundColor:'#a78bfa',borderRadius:3}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8892a8',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#e8ecf4',font:{size:10}}}}}
+  });
+
+  const allTF=allT.filter(t=>tA[t]||tB[t]);
+  destroyChart('comp-turnos-chart');
+  charts['comp-turnos-chart']=new Chart(document.getElementById('comp-turnos-chart'),{
+    type:'bar',
+    data:{labels:allTF,
+      datasets:[{label:labelA,data:allTF.map(t=>tA[t]||0),backgroundColor:'#3b82f6',borderRadius:3},
+                {label:labelB,data:allTF.map(t=>tB[t]||0),backgroundColor:'#a78bfa',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8892a8',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#e8ecf4',font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}}}}
+  });
+}
+
+// ── RESPONSÁVEL ───────────────────────────────────────────────────────────────
+function diasEmAtraso(dataStr){
+  if(!dataStr) return 0;
+  const dt = new Date(dataStr + 'T00:00:00');
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  return Math.floor((hoje - dt) / 86400000);
+}
+
+function renderResponsavel(){
+  const f=getFilters();
+  const d=applyFilters(f);
+  const hasStatusFilter=f.statuses.length>0;
+  const dG=hasStatusFilter?d:validosGraf(d);
+
+  // ── GRÁFICO E TABELA DE RESPONSÁVEIS ───────────────────────────────────────
+  const byResp=countBy(dG.filter(x=>x.responsavel_causa),'responsavel_causa');
+  const sorted=Object.entries(byResp).sort((a,b)=>b[1]-a[1]);
+
+  destroyChart('chart-resp-bar');
+  charts['chart-resp-bar']=new Chart(document.getElementById('chart-resp-bar'),{
+    type:'bar',indexAxis:'y',
+    data:{labels:sorted.map(([k])=>k.length>22?k.slice(0,22)+'…':k),
+      datasets:[{data:sorted.map(([,v])=>v),backgroundColor:sorted.map((_,i)=>BLUES[i%BLUES.length]),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8892a8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#e8ecf4',font:{size:10}}}}}
+  });
+
+  const top5Resp=sorted.slice(0,10).map(([r])=>r);
+  let html='';
+  top5Resp.forEach(resp=>{
+    const dd=dG.filter(x=>x.responsavel_causa===resp);
+    const topM=topN(countBy(dd.filter(x=>x.motivo),'motivo'),3);
+    html+=`<div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+        ${resp}
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">(${dd.length})</span>
+      </div>
+      ${topM.map(([m,n])=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <div style="flex:1;font-size:11px;color:var(--text2);">${m.length>32?m.slice(0,32)+'…':m}</div>
+        <div style="width:${Math.round(n/dd.length*80)}px;height:4px;background:#3b82f6;border-radius:2px;"></div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);min-width:20px;text-align:right">${n}</div>
+      </div>`).join('')}
+    </div>`;
+  });
+  document.getElementById('resp-motivos-table').innerHTML=html||'<div class="empty">Sem dados</div>';
+}
+
+// ── REGISTROS ─────────────────────────────────────────────────────────────────
+function statusBadge(s){
+  const cls={Concluída:'badge-green',Reprovada:'badge-red',Aberta:'badge-amber',Associada:'badge-blue',Cancelada:'badge-gray'}[s]||'badge-gray';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+function renderTabela(){
+  const f=getFilters();
+  const d=applyFilters(f);
+  const ativos=[f.statuses.length,f.turnos.length,f.clientes.length,f.motivos.length,(f.resps&&f.resps.length)?1:0].filter(Boolean).length;
+  document.getElementById('table-count').textContent=`${d.length} registros${ativos?` · ${ativos} filtro(s) ativo(s)`:''}`;
+  document.getElementById('table-body').innerHTML=d.slice(0,300).map(r=>`
+    <tr>
+      <td><span style="font-family:var(--mono);font-size:11px;color:var(--accent2)">${r.codigo}</span></td>
+      <td style="font-family:var(--mono)">${r.data}</td>
+      <td title="${r.motivo}">${r.motivo||'—'}</td>
+      <td>${r.responsavel_causa||'—'}</td>
+      <td>${r.turno||'—'}</td>
+      <td title="${r.cliente}">${(r.cliente||'—').slice(0,20)}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td><span style="font-size:11px;color:var(--text2)">${r.situacao||'—'}</span></td>
+    </tr>`).join('');
+}
+
+// ── BAIXAR RELATÓRIO PDF ──────────────────────────────────────────────────────
+function baixarPDF(){
+  const now=new Date();
+  const dia=String(now.getDate()).padStart(2,'0');
+  const mes=String(now.getMonth()+1).padStart(2,'0');
+  const ano=now.getFullYear();
+  const hora=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const dataConsulta=`${dia}/${mes}/${ano} às ${hora}`;
+
+  const f=getFilters();
+  const filtrosAtivos=[];
+  if(f.statuses.length) filtrosAtivos.push('Status: '+f.statuses.join(', '));
+  if(f.turnos.length)   filtrosAtivos.push('Turno: '+f.turnos.join(', '));
+  if(f.clientes.length) filtrosAtivos.push('Clientes: '+f.clientes.length+' selecionados');
+  if(f.motivos.length)  filtrosAtivos.push('Motivos: '+f.motivos.length+' selecionados');
+  if(f.resp)            filtrosAtivos.push('Responsável: '+f.resp);
+  const filtrosTxt=filtrosAtivos.length?filtrosAtivos.join(' · '):'Nenhum filtro aplicado';
+  const periodoTxt=`${f.from.split('-').reverse().join('/')} a ${f.to.split('-').reverse().join('/')}`;
+
+  // Injetar cabeçalho visível apenas no print
+  let hdr=document.getElementById('pdf-header');
+  if(!hdr){ hdr=document.createElement('div'); hdr.id='pdf-header'; document.body.prepend(hdr); }
+  hdr.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-size:20px;font-weight:700;color:#1e3a8a;">SMQ_RS</div>
+        <div style="font-size:12px;color:#555;">Sistema de Monitoramento de Qualidade</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#555;">
+        <div><strong>Data da consulta:</strong> ${dataConsulta}</div>
+        <div><strong>Aba:</strong> ${abaAtiva.toUpperCase()}</div>
+        <div><strong>Período:</strong> ${periodoTxt}</div>
+        <div><strong>Filtros:</strong> ${filtrosTxt}</div>
+      </div>
+    </div>`;
+
+  // Mostrar apenas o painel ativo no print
+  document.querySelectorAll('.panel').forEach(p=>{
+    p.style.setProperty('display', p.classList.contains('active')?'block':'none','important');
+  });
+
+  window.print();
+
+  // Restaurar após print
+  setTimeout(()=>{
+    document.querySelectorAll('.panel').forEach(p=>p.style.removeProperty('display'));
+  },500);
+}
+
+// ── UPLOAD ────────────────────────────────────────────────────────────────────
+function handleUpload(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    try{
+      const wb=XLSX.read(evt.target.result,{type:'binary',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+      const headers=rows[0];
+      const[iCod,iTit,iSt,iSit,iDt,iRsp,,,,, iRca,,,iMot,iQtd,iTrn]=
+        ['código','título','status','situação','emissão','responsável','categoria','local','cliente','descrição','análise de causa','link','embalagem','motivo','quantidade','turno']
+        .map(n=>headers.findIndex(h=>h&&h.toString().toLowerCase().includes(n)));
+      const iCli=headers.findIndex(h=>h&&h.toString().toLowerCase().includes('cliente'));
+      DATA=rows.slice(1).filter(r=>r[iCod]).map(r=>{
+        let dt=r[iDt], dateStr='', ano=null, mes=null;
+        if(dt instanceof Date){ano=dt.getFullYear();mes=dt.getMonth()+1;dateStr=dt.toISOString().slice(0,10);}
+        else if(typeof dt==='string'){const d=new Date(dt);if(!isNaN(d)){ano=d.getFullYear();mes=d.getMonth()+1;dateStr=d.toISOString().slice(0,10);}}
+        else if(typeof dt==='number'){const d=XLSX.SSF.parse_date_code(dt);if(d){ano=d.y;mes=d.m;dateStr=`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;}}
+        const turnoRaw=(r[iTrn]||'').toString();
+        let turno='Não Informado';
+        if(/1/.test(turnoRaw)&&/2/.test(turnoRaw)&&/3/.test(turnoRaw))turno='Múltiplos Turnos';
+        else if(/1/.test(turnoRaw))turno='1° Turno';
+        else if(/2/.test(turnoRaw))turno='2° Turno';
+        else if(/3/.test(turnoRaw))turno='3° Turno';
+        return{codigo:r[iCod]||'',titulo:r[iTit]||'',status:r[iSt]||'',situacao:r[iSit]||'',
+          data:dateStr,ano,mes,responsavel:r[iRsp]||'',cliente:r[iCli]||'',
+          responsavel_causa:r[iRca]||'',motivo:r[iMot]||'',qtd:r[iQtd]||'',turno};
+      });
+      // Atualizar RAW_DATA (base completa) e DATA (filtrada)
+      // RAW_DATA é const, então recriamos via referência mutável
+      RAW_DATA.length = 0;
+      DATA.forEach((_, i) => { RAW_DATA[i] = DATA[i]; });
+      RAW_DATA.length = DATA.length;
+
+      // Registrar data/hora da atualização
+      const now = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      const dtStr = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} às ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      document.getElementById('data-info').textContent = `${DATA.length} registros carregados`;
+      document.getElementById('data-update').textContent = `Atualizado em ${dtStr}`;
+      document.getElementById('data-update').style.color = 'var(--green)';
+
+      populateSelects();
+      renderAtivo();
+      // Forçar re-render da Visão Geral também (usa RAW_DATA)
+      if (abaAtiva !== 'visao') {
+        // Pré-renderizar visão geral em background para manter coerência
+        // (charts só renderizam se o canvas é visível, então apenas sinalizamos)
+        window._visaoDirty = true;
+      }
+      alert('✓ Planilha importada: ' + DATA.length + ' registros.\nAtualizado em ' + dtStr);
+    }catch(err){alert('Erro ao ler planilha: '+err.message);}
+  };
+  reader.readAsBinaryString(file);
+  e.target.value='';
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+populateSelects();
+renderPeriodo(); // aba ativa por padrão
+</script>
+</body>
+</html>
