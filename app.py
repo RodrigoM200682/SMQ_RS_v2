@@ -1,17 +1,18 @@
 """
-SMQ_RS v3.0
-Lê a planilha .xlsx diretamente do Google Drive.
-Ao iniciar, busca o arquivo e atualiza os dados automaticamente.
+SMQ_RS v4.0
+Persistência simples: salva a planilha como arquivo no repositório GitHub.
+A cada reinício, lê o arquivo salvo automaticamente.
 
 Secrets (Streamlit Cloud → Settings → Secrets):
-  [gcp]
-  file_id     = "ID_DO_ARQUIVO_XLSX_NO_DRIVE"
-  credentials = '''{ JSON da conta de serviço }'''
+  [github]
+  token  = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  repo   = "seu-usuario/smq_rs"
+  branch = "main"
 """
 
 import streamlit as st
 import pandas as pd
-import json, re, base64, io
+import json, re, base64, urllib.request, urllib.error
 from datetime import datetime
 from pathlib import Path
 from io import BytesIO
@@ -20,12 +21,17 @@ BASE_DIR  = Path(__file__).parent
 HTML_FILE = BASE_DIR / "dashboard_rnc.html"
 DATA_DIR  = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
+
+# Cache local (sobrevive dentro da mesma sessão do servidor)
 CACHE_JSON = DATA_DIR / "cache.json"
 CACHE_META = DATA_DIR / "cache_meta.json"
 
+# Caminho do arquivo no repositório GitHub
+GH_PATH = "data/planilha.json"   # salva o JSON convertido, não o xlsx
+
 # ── Página ────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="SMQ_RS — Monitoramento de Qualidade",
+    page_title="SMQ_RS",
     page_icon="🔵",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -40,54 +46,115 @@ st.markdown("""
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GOOGLE DRIVE — baixar planilha .xlsx pelo file_id
+# GITHUB — ler e salvar arquivo no repositório
 # ══════════════════════════════════════════════════════════════════════════════
 
-def drive_configurado() -> bool:
+def gh_cfg():
     try:
-        _ = st.secrets["gcp"]["file_id"]
-        _ = st.secrets["gcp"]["credentials"]
-        return True
+        t = st.secrets["github"]["token"].strip()
+        r = st.secrets["github"]["repo"].strip()
+        b = st.secrets["github"].get("branch", "main").strip()
+        return t, r, b
     except Exception:
-        return False
+        return None, None, None
 
 
-def drive_baixar_xlsx() -> tuple[bytes | None, str]:
-    """
-    Baixa o arquivo .xlsx do Google Drive.
-    Retorna (bytes_do_arquivo, mensagem_erro).
-    """
+def gh_ok() -> bool:
+    t, r, _ = gh_cfg()
+    return bool(t and r)
+
+
+def _gh_req(method, path, token, repo, branch, data=None):
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    if method == "GET":
+        url += f"?ref={branch}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "SMQ_RS/4.0",
+        "Content-Type": "application/json",
+    }
+    body = json.dumps(data).encode() if data else None
+    req  = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-        from googleapiclient.http import MediaIoBaseDownload
-
-        # Autenticar
-        raw   = st.secrets["gcp"]["credentials"]
-        info  = json.loads(raw) if isinstance(raw, str) else dict(raw)
-        creds = Credentials.from_service_account_info(
-            info,
-            scopes=["https://www.googleapis.com/auth/drive.readonly"]
-        )
-        svc     = build("drive", "v3", credentials=creds, cache_discovery=False)
-        file_id = st.secrets["gcp"]["file_id"].strip()
-
-        # Baixar arquivo
-        buf  = io.BytesIO()
-        req  = svc.files().get_media(fileId=file_id)
-        dl   = MediaIoBaseDownload(buf, req)
-        done = False
-        while not done:
-            _, done = dl.next_chunk()
-
-        return buf.getvalue(), ""
-
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read())
+        except Exception:
+            return e.code, {}
     except Exception as e:
-        return None, str(e)
+        return 0, {"error": str(e)}
+
+
+def gh_ler() -> tuple[str | None, str | None]:
+    """Lê arquivo do GitHub. Retorna (conteudo_str, sha) ou (None, None)."""
+    t, r, b = gh_cfg()
+    if not t:
+        return None, None
+    status, body = _gh_req("GET", GH_PATH, t, r, b)
+    if status == 200:
+        try:
+            conteudo = base64.b64decode(
+                body["content"].replace("\n", "")
+            ).decode("utf-8")
+            return conteudo, body.get("sha")
+        except Exception:
+            return None, None
+    return None, None
+
+
+def gh_salvar(conteudo: str, mensagem: str) -> tuple[bool, str]:
+    """Salva arquivo no GitHub. Retorna (sucesso, detalhe)."""
+    t, r, b = gh_cfg()
+    if not t:
+        return False, "GitHub não configurado"
+
+    _, sha = gh_ler()   # busca SHA para update
+
+    payload = {
+        "message": mensagem,
+        "content": base64.b64encode(conteudo.encode("utf-8")).decode("ascii"),
+        "branch":  b,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    status, body = _gh_req("PUT", GH_PATH, t, r, b, payload)
+    if status in (200, 201):
+        commit = body.get("commit", {}).get("sha", "")[:7]
+        return True, f"commit {commit}"
+    else:
+        msg = body.get("message", str(body))
+        return False, f"HTTP {status}: {msg}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# XLSX → JSON (converte a planilha para o formato do dashboard)
+# CACHE LOCAL
+# ══════════════════════════════════════════════════════════════════════════════
+
+def salvar_cache(json_str: str, ts: str, n: int):
+    CACHE_JSON.write_text(json_str, encoding="utf-8")
+    CACHE_META.write_text(
+        json.dumps({"timestamp": ts, "n_records": n}),
+        encoding="utf-8",
+    )
+
+def ler_cache() -> tuple[str | None, str, int]:
+    if CACHE_JSON.exists() and CACHE_META.exists():
+        try:
+            j    = CACHE_JSON.read_text(encoding="utf-8")
+            meta = json.loads(CACHE_META.read_text(encoding="utf-8"))
+            return j, meta.get("timestamp", "—"), int(meta.get("n_records", 0))
+        except Exception:
+            pass
+    return None, "", 0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# XLSX → JSON
 # ══════════════════════════════════════════════════════════════════════════════
 
 def xlsx_para_json(file_bytes: bytes) -> tuple[str | None, int, str]:
@@ -117,7 +184,7 @@ def xlsx_para_json(file_bytes: bytes) -> tuple[str | None, int, str]:
         if not c_cod:
             return None, 0, (
                 f"Coluna 'Código' não encontrada.\n"
-                f"Colunas encontradas: {', '.join(df.columns.tolist())}"
+                f"Colunas detectadas: {', '.join(df.columns.tolist())}"
             )
 
         registros = []
@@ -161,70 +228,68 @@ def xlsx_para_json(file_bytes: bytes) -> tuple[str | None, int, str]:
             })
 
         if not registros:
-            return None, 0, "Nenhum registro encontrado na planilha."
-
+            return None, 0, "Nenhum registro encontrado."
         return json.dumps(registros, ensure_ascii=False), len(registros), ""
-
     except Exception as e:
-        return None, 0, f"Erro ao processar planilha: {e}"
+        return None, 0, f"Erro ao processar: {e}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CACHE LOCAL — evita baixar o Drive toda vez que o usuário muda de aba
+# CARREGAR DADOS: GitHub → cache → original
 # ══════════════════════════════════════════════════════════════════════════════
 
-def salvar_cache(json_str: str, ts: str, n: int) -> None:
-    CACHE_JSON.write_text(json_str, encoding="utf-8")
-    CACHE_META.write_text(
-        json.dumps({"timestamp": ts, "n_records": n}),
-        encoding="utf-8",
-    )
+def carregar_dados() -> tuple[str | None, str, int, str]:
+    """Retorna (json_str, ts, n, origem)."""
 
-def carregar_cache() -> tuple[str | None, str, int]:
-    if CACHE_JSON.exists() and CACHE_META.exists():
-        try:
-            j    = CACHE_JSON.read_text(encoding="utf-8")
-            meta = json.loads(CACHE_META.read_text(encoding="utf-8"))
-            return j, meta.get("timestamp", "—"), int(meta.get("n_records", 0))
-        except Exception:
-            pass
-    return None, "", 0
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CARREGAR DADOS — Drive → cache → original
-# ══════════════════════════════════════════════════════════════════════════════
-
-def carregar_dados() -> tuple[str | None, str, int, str, str]:
-    """
-    Retorna (json_str, timestamp, n_registros, origem, erro).
-    origem: 'drive' | 'cache' | 'original'
-    """
-    # 1. Tentar Google Drive
-    if drive_configurado():
-        xlsx_bytes, erro_dl = drive_baixar_xlsx()
-        if xlsx_bytes:
-            j, n, erro_conv = xlsx_para_json(xlsx_bytes)
-            if j:
-                ts = datetime.now().strftime("%d/%m/%Y às %H:%M")
-                salvar_cache(j, ts, n)
-                return j, ts, n, "drive", ""
-            else:
-                # Drive OK mas conversão falhou → tentar cache
+    # 1. GitHub (fonte de verdade)
+    if gh_ok():
+        conteudo, _ = gh_ler()
+        if conteudo:
+            try:
+                payload = json.loads(conteudo)
+                j  = json.dumps(payload["dados"], ensure_ascii=False)
+                ts = payload.get("timestamp", "—")
+                n  = int(payload.get("n_records", 0))
+                salvar_cache(j, ts, n)   # atualiza cache local
+                return j, ts, n, "github"
+            except Exception:
                 pass
-        # Drive falhou → tentar cache
-        j, ts, n = carregar_cache()
-        if j:
-            return j, ts, n, "cache", f"Drive indisponível ({erro_dl}), usando cache"
-        return None, "", 0, "original", f"Drive: {erro_dl}"
 
-    # 2. Sem Drive configurado → cache local
-    j, ts, n = carregar_cache()
+    # 2. Cache local (última sessão bem-sucedida)
+    j, ts, n = ler_cache()
     if j:
-        return j, ts, n, "cache", ""
+        return j, ts, n, "cache"
 
-    # 3. Dados originais embutidos
-    return None, "", 0, "original", ""
+    # 3. Dados originais embutidos no HTML
+    return None, "", 0, "original"
+
+
+def salvar_dados(j: str, ts: str, n: int) -> list[str]:
+    """Salva cache + GitHub. Retorna log."""
+    log = []
+
+    # Cache local
+    try:
+        salvar_cache(j, ts, n)
+        log.append("✅ Cache local: salvo")
+    except Exception as e:
+        log.append(f"⚠️ Cache local: {e}")
+
+    # GitHub
+    if gh_ok():
+        payload  = json.dumps(
+            {"timestamp": ts, "n_records": n, "dados": json.loads(j)},
+            ensure_ascii=False
+        )
+        ok, det = gh_salvar(payload, f"SMQ_RS: {n} registros — {ts}")
+        if ok:
+            log.append(f"✅ GitHub: salvo ({det})")
+        else:
+            log.append(f"❌ GitHub: {det}")
+    else:
+        log.append("ℹ️ GitHub não configurado — dados apenas no cache local")
+
+    return log
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -233,10 +298,10 @@ def carregar_dados() -> tuple[str | None, str, int, str, str]:
 
 _RE = re.compile(r"const RAW_DATA = \[.*?\];", re.DOTALL)
 
-def montar_html(json_str, ts, n):
+def montar_html(j, ts, n):
     html = HTML_FILE.read_text(encoding="utf-8")
-    if json_str:
-        html = _RE.sub(f"const RAW_DATA = {json_str};", html)
+    if j:
+        html = _RE.sub(f"const RAW_DATA = {j};", html)
         html = re.sub(r"\d+ registros carregados", f"{n} registros carregados", html)
         html = re.sub(
             r"(Base original[^<\"]*|Atualizado em [^<\"]*)",
@@ -261,11 +326,11 @@ def render_html(html, height=980):
 # ══════════════════════════════════════════════════════════════════════════════
 
 if "dados" not in st.session_state:
-    with st.spinner("Carregando dados do Google Drive..."):
-        j, ts, n, origem, aviso = carregar_dados()
+    with st.spinner("Carregando dados..."):
+        j, ts, n, origem = carregar_dados()
     st.session_state.update({
         "dados": j, "ts": ts, "n": n,
-        "origem": origem, "aviso": aviso,
+        "origem": origem, "log": [],
     })
 
 
@@ -278,19 +343,14 @@ with st.sidebar:
     st.caption("Sistema de Monitoramento de Qualidade")
     st.divider()
 
-    # ── Status atual ──────────────────────────────────────────────────────────
+    # Status
     origem = st.session_state.get("origem", "original")
-    aviso  = st.session_state.get("aviso", "")
-
-    if origem == "drive":
-        st.success("☁️ **Google Drive** — dados atualizados")
+    if origem == "github":
+        st.success("✅ Dados carregados do GitHub")
     elif origem == "cache":
-        st.warning("💾 **Cache local** — Drive não acessado")
+        st.warning("💾 Cache local (GitHub offline ou não configurado)")
     else:
         st.info("📋 Dados originais do sistema")
-
-    if aviso:
-        st.caption(f"⚠️ {aviso}")
 
     if st.session_state.get("ts"):
         st.caption(f"🕐 {st.session_state['ts']}")
@@ -298,77 +358,74 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Configuração Google Drive ─────────────────────────────────────────────
-    if drive_configurado():
-        st.success("☁️ **Drive configurado**")
+    # Status GitHub
+    if gh_ok():
+        _, repo, branch = gh_cfg()
+        st.success(f"☁️ **GitHub:** `{repo}` · `{branch}`")
+    else:
+        st.warning("⚠️ GitHub não configurado")
+        with st.expander("Como configurar"):
+            st.code("""
+# Streamlit Cloud → Settings → Secrets
 
-        # Botão para forçar atualização manual
-        if st.button("🔄 Atualizar do Drive agora", use_container_width=True):
-            with st.spinner("Baixando planilha do Drive..."):
-                j, ts, n, origem, aviso = carregar_dados()
-            if j and origem == "drive":
+[github]
+token  = "ghp_xxxxxxxxxxxxxxxxxxxx"
+repo   = "seu-usuario/smq_rs"
+branch = "main"
+""", language="toml")
+            st.caption(
+                "Token: github.com/settings/tokens "
+                "→ Generate new token (classic) → escopo **repo**"
+            )
+
+    st.divider()
+
+    # Upload de planilha
+    st.markdown("### 📂 Atualizar Planilha")
+    arquivo = st.file_uploader("Selecione o arquivo .xlsx", type=["xlsx","xls"])
+
+    if arquivo:
+        if st.button("⬆️ Salvar Planilha", type="primary", use_container_width=True):
+            # Ler
+            with st.spinner("Lendo planilha..."):
+                j, n, erro = xlsx_para_json(arquivo.read())
+
+            if not j:
+                st.error(f"❌ {erro}")
+            else:
+                ts = datetime.now().strftime("%d/%m/%Y às %H:%M")
+
+                # Salvar
+                with st.spinner("Salvando..."):
+                    log = salvar_dados(j, ts, n)
+
+                # Exibir resultado
+                for linha in log:
+                    if "✅" in linha:   st.success(linha)
+                    elif "❌" in linha: st.error(linha)
+                    else:               st.caption(linha)
+
+                # Atualizar sessão
+                nova_origem = "github" if any("✅ GitHub" in l for l in log) else "cache"
                 st.session_state.update({
                     "dados": j, "ts": ts, "n": n,
-                    "origem": origem, "aviso": aviso,
+                    "origem": nova_origem, "log": log,
                 })
-                st.success(f"✅ {n:,} registros carregados!\n\n🕐 {ts}")
                 st.rerun()
-            else:
-                st.error(f"❌ {aviso or 'Falha ao baixar do Drive'}")
-    else:
-        with st.expander("⚙️ Configurar Google Drive", expanded=True):
-            st.markdown("""
-**Como configurar em 3 passos:**
-
-**1. Criar conta de serviço:**
-- console.cloud.google.com
-- APIs → ativar **Google Drive API**
-- Credenciais → Conta de serviço → baixar JSON
-
-**2. Compartilhar a planilha:**
-- Abra o `.xlsx` no Google Drive
-- Compartilhar → cole o `client_email` do JSON → Editor
-- Copie o **ID do arquivo** da URL:
-  `drive.google.com/file/d/`**`ID`**`/view`
-
-**3. Streamlit → Settings → Secrets:**
-```toml
-[gcp]
-file_id     = "ID_DO_ARQUIVO"
-credentials = '''
-{ cole o JSON completo aqui }
-'''
-```
-""")
 
     st.divider()
 
-    # ── Upload manual (alternativa sem Drive) ─────────────────────────────────
-    with st.expander("📂 Upload manual de planilha"):
-        st.caption("Use se não tiver o Google Drive configurado")
-        arquivo = st.file_uploader(
-            "Selecione o .xlsx",
-            type=["xlsx", "xls"],
-            key="manual_upload",
-        )
-        if arquivo:
-            if st.button("⬆️ Carregar", type="primary", use_container_width=True):
-                with st.spinner("Processando..."):
-                    j, n, erro = xlsx_para_json(arquivo.read())
-                if not j:
-                    st.error(f"❌ {erro}")
-                else:
-                    ts = datetime.now().strftime("%d/%m/%Y às %H:%M")
-                    salvar_cache(j, ts, n)
-                    st.session_state.update({
-                        "dados": j, "ts": ts, "n": n,
-                        "origem": "cache", "aviso": "",
-                    })
-                    st.success(f"✅ {n:,} registros carregados!")
-                    st.rerun()
+    if CACHE_JSON.exists():
+        if st.button("🗑️ Limpar dados salvos", type="secondary"):
+            CACHE_JSON.unlink(missing_ok=True)
+            CACHE_META.unlink(missing_ok=True)
+            st.session_state.update({
+                "dados": None, "ts": "", "n": 0,
+                "origem": "original", "log": [],
+            })
+            st.rerun()
 
-    st.divider()
-    st.caption("SMQ_RS v3.0 · Google Drive + Chart.js")
+    st.caption("SMQ_RS v4.0 · GitHub + Chart.js")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
